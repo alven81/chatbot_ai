@@ -18,17 +18,54 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
+// Validate API keys on startup
+if (!process.env.OPENAI_API_KEY && process.env.USE_GOOGLE_LLM !== "true") {
+  console.error(
+    "❌ ERROR: OPENAI_API_KEY is not set in .env file. Cannot use OpenAI."
+  );
+  console.error(
+    "   Set USE_GOOGLE_LLM=true to use Google Gemini, or add OPENAI_API_KEY"
+  );
+}
+
+if (process.env.USE_GOOGLE_LLM === "true" && !process.env.GOOGLE_API_KEY) {
+  console.error(
+    "❌ ERROR: GOOGLE_API_KEY is not set in .env file. Cannot use Google Gemini."
+  );
+}
+
 // Store chat history per session (in-memory, for demo purposes)
 const chatHistories: Map<string, BaseMessage[]> = new Map();
 
-// Initialize LLM - using OpenAI by default
-// To use Google Gemini, set USE_GOOGLE_LLM=true in .env
+// Initialize LLM - using OpenAI gpt-4o-mini by default (requires paid account)
+// To use Google Gemini (limited free tier), set USE_GOOGLE_LLM=true in .env
+// To use local Ollama (completely free), set USE_OLLAMA=true in .env
 const useLLM =
-  process.env.USE_GOOGLE_LLM === "true"
-    ? new ChatGoogleGenerativeAI({ model: "gemini-2.0-flash" })
-    : new ChatOpenAI({ model: "gpt-3.5-turbo" });
+  process.env.USE_OLLAMA === "true"
+    ? new ChatOpenAI({
+        model: "llama2",
+        apiKey: "ollama",
+        configuration: {
+          baseURL: "http://localhost:11434/v1",
+        },
+      })
+    : process.env.USE_GOOGLE_LLM === "true"
+      ? new ChatGoogleGenerativeAI({ model: "gemini-2.5-flash" })
+      : new ChatOpenAI({ model: "gpt-4o-mini" });
 
 const outputParser = new StringOutputParser();
+
+// Error handler for rate limits
+const handleRateLimitError = (error: any) => {
+  if (error.status === 429 || error.statusText === "Too Many Requests") {
+    return {
+      status: 429,
+      message:
+        "Rate limit exceeded. Please wait a moment and try again. (Free tier quota limits apply)",
+    };
+  }
+  return null;
+};
 
 // Simple chat endpoint (no history)
 app.post("/api/chat", async (req, res) => {
@@ -46,9 +83,17 @@ app.post("/api/chat", async (req, res) => {
         : JSON.stringify(response.content);
 
     res.json({ response: content });
-  } catch (error) {
+  } catch (error: any) {
+    const rateLimitError = handleRateLimitError(error);
+    if (rateLimitError) {
+      return res
+        .status(rateLimitError.status)
+        .json({ error: rateLimitError.message });
+    }
     console.error("Chat error:", error);
-    res.status(500).json({ error: "Failed to get response from AI" });
+    res.status(500).json({
+      error: "Failed to get response from AI. Check server logs for details.",
+    });
   }
 });
 
@@ -88,9 +133,17 @@ app.post("/api/chat/history", async (req, res) => {
     chatHistory.push(new AIMessage(response));
 
     res.json({ response, sessionId });
-  } catch (error) {
+  } catch (error: any) {
+    const rateLimitError = handleRateLimitError(error);
+    if (rateLimitError) {
+      return res
+        .status(rateLimitError.status)
+        .json({ error: rateLimitError.message });
+    }
     console.error("Chat history error:", error);
-    res.status(500).json({ error: "Failed to get response from AI" });
+    res.status(500).json({
+      error: "Failed to get response from AI. Check server logs for details.",
+    });
   }
 });
 
@@ -150,9 +203,22 @@ app.post("/api/chat/stream", async (req, res) => {
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
-  } catch (error) {
+  } catch (error: any) {
+    const rateLimitError = handleRateLimitError(error);
+    if (rateLimitError) {
+      res.status(rateLimitError.status);
+      res.write(
+        `data: ${JSON.stringify({ error: rateLimitError.message })}\n\n`
+      );
+      res.end();
+      return;
+    }
     console.error("Stream error:", error);
-    res.status(500).json({ error: "Failed to stream response" });
+    res.status(500);
+    res.write(
+      `data: ${JSON.stringify({ error: "Failed to stream response" })}\n\n`
+    );
+    res.end();
   }
 });
 
@@ -160,13 +226,58 @@ app.post("/api/chat/stream", async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    llm: process.env.USE_GOOGLE_LLM === "true" ? "Google Gemini" : "OpenAI",
+    llm:
+      process.env.USE_OLLAMA === "true"
+        ? "Ollama (Local - llama2)"
+        : process.env.USE_GOOGLE_LLM === "true"
+          ? "Google Gemini (gemini-2.5-flash - free tier ⭐)"
+          : "OpenAI (gpt-4o-mini - paid)",
+    apiKeys: {
+      openai: process.env.OPENAI_API_KEY
+        ? `✅ Loaded (paid account)`
+        : "❌ Not set",
+      google: process.env.GOOGLE_API_KEY
+        ? `✅ Loaded (free tier)`
+        : "❌ Not set",
+      ollama: process.env.USE_OLLAMA === "true" ? "✅ Local" : "Not enabled",
+    },
+    activeProvider:
+      process.env.USE_OLLAMA === "true"
+        ? "Ollama"
+        : process.env.USE_GOOGLE_LLM === "true"
+          ? "Google Gemini (free)"
+          : "OpenAI",
+    note: "OpenAI gpt-4o-mini requires a paid account. Use USE_GOOGLE_LLM=true for free Gemini (limited quota) or USE_OLLAMA=true for local unlimited.",
   });
 });
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+  const isUsingOllama = process.env.USE_OLLAMA === "true";
+  const isUsingGemini = process.env.USE_GOOGLE_LLM === "true";
+  const llmName = isUsingOllama
+    ? "Ollama (Local - llama2)"
+    : isUsingGemini
+      ? "Google Gemini (gemini-2.5-flash - free tier ⭐)"
+      : "OpenAI (gpt-4o-mini - requires paid account)";
+  console.log(`📡 Using LLM: ${llmName}`);
+
+  // Show API key status
+  if (isUsingOllama) {
+    console.log(`🔑 Ollama: Running locally at http://localhost:11434`);
+  } else if (isUsingGemini) {
+    const hasKey = !!process.env.GOOGLE_API_KEY;
+    console.log(`🔑 Google API Key: ${hasKey ? "✅ Loaded" : "❌ NOT FOUND"}`);
+  } else {
+    const hasKey = !!process.env.OPENAI_API_KEY;
+    console.log(
+      `🔑 OpenAI API Key: ${hasKey ? "✅ Loaded (paid account)" : "❌ NOT FOUND"}`
+    );
+  }
+
   console.log(
-    `📡 Using LLM: ${process.env.USE_GOOGLE_LLM === "true" ? "Google Gemini" : "OpenAI"}`
+    `⚠️  Free tier note: OpenAI requires paid account, Gemini has daily quota limits`
   );
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
