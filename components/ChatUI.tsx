@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import "../app/App.scss";
+import Link from "next/link";
 
 interface Message {
   id: string;
@@ -180,6 +181,12 @@ export default function ChatUI({ initialStatus }: ChatUIProps) {
           <p style={{ fontSize: "0.7rem", opacity: 0.8 }}>
             Running on: {initialStatus.llm}
           </p>
+          <Link
+            href="/"
+            style={{ color: "#ffffff", textDecoration: "underline" }}
+          >
+            Go back to Home
+          </Link>
         </div>
         <div className="controls">
           <label className="toggle">
