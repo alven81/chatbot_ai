@@ -9,21 +9,30 @@ import {
 } from "@nestjs/common";
 import { ChatService } from "./chat.service";
 import type { Response } from "express";
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from "@nestjs/swagger";
+import { ChatRequest, ClearRequest } from "./dto/chat.dto";
 
+@ApiTags("Chat")
 @Controller("api")
 export class ChatController {
   constructor(@Inject(ChatService) private readonly chatService: ChatService) {}
 
   @Post("chat/history")
-  async chatWithHistory(@Body() body: { message: string; sessionId?: string }) {
+  @ApiOperation({ summary: "Send a message and get a full response" })
+  @ApiBody({ type: ChatRequest })
+  @ApiResponse({ status: 200, description: "The AI response" })
+  async chatWithHistory(@Body() body: ChatRequest) {
     return this.chatService.getChatResponse(body.message, body.sessionId);
   }
 
   @Post("chat/stream")
-  async streamChat(
-    @Body() body: { message: string; sessionId?: string },
-    @Res() res: Response
-  ) {
+  @ApiOperation({ summary: "Send a message and get a streaming response" })
+  @ApiBody({ type: ChatRequest })
+  @ApiResponse({
+    status: 200,
+    description: "The AI response stream (Server-Sent Events)",
+  })
+  async streamChat(@Body() body: ChatRequest, @Res() res: Response) {
     console.log(`[ChatController] Starting stream for: ${body.message}`);
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -61,11 +70,15 @@ export class ChatController {
   }
 
   @Post("chat/clear")
-  clearChat(@Body() body: { sessionId?: string }) {
+  @ApiOperation({ summary: "Clear chat history for a session" })
+  @ApiBody({ type: ClearRequest })
+  @ApiResponse({ status: 200, description: "History cleared successfully" })
+  clearChat(@Body() body: ClearRequest) {
     return this.chatService.clearHistory(body.sessionId);
   }
-
   @Get("health")
+  @ApiOperation({ summary: "Get API health and active LLM provider" })
+  @ApiResponse({ status: 200, description: "Health status" })
   health() {
     return this.chatService.getHealth();
   }
