@@ -1,22 +1,8 @@
 import ChatUI from "@/components/ChatUI";
+import { getStatus } from "@/services/request";
 
-// This is a Server Component for the Chat route
-export default async function ChatPage() {
-  const getStatus = async () => {
-    try {
-      const resp = await fetch(`http://localhost:3001/api/health`, {
-        cache: "no-store",
-      });
-      const data = await resp.json();
-      return {
-        llm: data.llm || "AI",
-        serverTimestamp: new Date().toISOString(),
-      };
-    } catch (e) {
-      return { llm: "Unknown", serverTimestamp: null };
-    }
-  };
-
+// Server Component for the Chat route
+const ChatPage = async () => {
   const status = await getStatus();
 
   return (
@@ -24,4 +10,6 @@ export default async function ChatPage() {
       <ChatUI initialStatus={status} />
     </main>
   );
-}
+};
+
+export default ChatPage;
