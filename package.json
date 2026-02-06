@@ -18,14 +18,14 @@
   "bugs": "",
   "keywords": [],
   "scripts": {
-    "build": "tsc",
-    "start": "node ./dist/app.js",
-    "dev": "ts-node --esm ./src/app.ts",
-    "server": "tsx ./server/index.ts",
-    "client": "cd client && npx vite",
-    "client:build": "cd client && npx vite build",
+    "dev:frontend": "next dev",
+    "dev:backend": "tsx ./server/src/main.ts",
+    "dev": "npm run dev:frontend & npm run dev:backend",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/cli-progress": "^3.11.6",
@@ -47,6 +47,11 @@
     "@langchain/google-genai": "^2.1.7",
     "@langchain/openai": "^1.2.1",
     "@langchain/pinecone": "^1.0.1",
+    "@nestjs/common": "^11.1.13",
+    "@nestjs/config": "^4.0.3",
+    "@nestjs/core": "^11.1.13",
+    "@nestjs/platform-express": "^11.1.13",
+    "@nestjs/swagger": "^11.2.6",
     "@pinecone-database/pinecone": "^5.0.2",
     "@vitejs/plugin-react": "^5.1.2",
     "cheerio": "^1.1.2",
@@ -55,9 +60,13 @@
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "langchain": "^1.2.7",
+    "next": "^16.1.6",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "sass": "^1.97.3",
+    "swagger-ui-express": "^5.0.1",
     "vite": "^7.3.1"
   }
 }

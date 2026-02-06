@@ -1,6 +1,6 @@
-# AI Chatbot with Vite + React + LangChain
+# AI Chatbot with Next.js + NestJS + LangChain
 
-A full-stack chatbot application using React frontend and Express backend with LangChain integration.
+A modern, decoupled chatbot application using a **Next.js** frontend with Server-Side Rendering (SSR) and a **NestJS** backend with LangChain integration.
 
 ## Quick Start
 
@@ -16,17 +16,27 @@ npm install
 
 ## Running the Application
 
-### Terminal 1: Start the Server
+Started both applications with a single command:
 ```bash
-npm run server
+npm run dev
 ```
 
-### Terminal 2: Start the Client
-```bash
-npm run client
-```
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend**: [http://localhost:3001](http://localhost:3001)
 
-Then open http://localhost:5173 in your browser.
+---
+
+## Architecture
+
+This project uses a **Decoupled Architecture**:
+
+1.  **Frontend (Next.js)**: 
+    - Uses **App Router**.
+    - **Server Components (SSR)**: The landing page fetches initial system health and LLM provider status directly from the API before rendering.
+    - **Client Components**: Interactive chat interface with streaming support.
+2.  **Backend (NestJS)**:
+    - **Modular Design**: Structured into `ChatModule`, `ChatService`, and `ChatController`.
+    - **Dependency Injection**: Full use of NestJS DI for services and configuration.
 
 ---
 
@@ -146,50 +156,34 @@ npm run server
 ## Available Scripts
 
 ```bash
-# Build TypeScript
-npm run build
-
-# Start compiled server
-npm start
-
-# Development server (CLI)
+# Start both Frontend and Backend in development mode
 npm run dev
 
-# Start backend server
-npm run server
+# Start only the Next.js Frontend
+npm run dev:frontend
 
-# Start frontend dev server
-npm run client
+# Start only the NestJS Backend
+npm run dev:backend
 
-# Build frontend for production
-npm run client:build
+# Build the Next.js Frontend for production
+npm run build
+
+# Start the production Frontend
+npm start
 
 # Format code with Prettier
 npm run format
-
-# Check formatting
-npm run format:check
 ```
 
 ---
 
-## API Endpoints
+## API Endpoints (NestJS - Port 3001)
 
 ### Health Check
 ```
 GET http://localhost:3001/api/health
 ```
-Returns LLM status and API key information.
-
-### Simple Chat (No History)
-```
-POST http://localhost:3001/api/chat
-Content-Type: application/json
-
-{
-  "message": "Hello, how are you?"
-}
-```
+Returns status and active LLM provider (OpenAI, Google, or Ollama).
 
 ### Chat with History
 ```
@@ -202,7 +196,7 @@ Content-Type: application/json
 }
 ```
 
-### Streaming Chat
+### Streaming Chat (Server-Sent Events)
 ```
 POST http://localhost:3001/api/chat/stream
 Content-Type: application/json
@@ -213,39 +207,18 @@ Content-Type: application/json
 }
 ```
 
-### Clear Chat History
-```
-POST http://localhost:3001/api/chat/clear
-Content-Type: application/json
-
-{
-  "sessionId": "user-123"
-}
-```
-
 ---
 
 ## Troubleshooting
 
-### "OpenAI quota exceeded" error
-- OpenAI API requires a paid account
-- Switch to Google Gemini: `USE_GOOGLE_LLM=true`
-- Or use Ollama: `USE_OLLAMA=true`
-
-### "Google API quota exceeded" error
-- Gemini free tier has daily limits
-- Wait a few hours for quota reset
-- Or switch to Ollama for unlimited access
-
-### Ollama connection refused
-- Make sure Ollama is installed and running
-- Check it's accessible: `curl http://localhost:11434/api/tags`
-- Start Ollama if not running
+### "EADDRINUSE: address already in use :::3001"
+This happens if a previous process is still running. Kill it before restarting:
+- **Windows**: `netstat -ano | findstr :3001` then `taskkill /F /PID <PID>`
+- **Mac/Linux**: `lsof -i :3001` then `kill -9 <PID>`
 
 ### CORS errors in browser
-- Backend server is running on `http://localhost:3001`
-- Frontend is running on `http://localhost:5173`
-- CORS is enabled, should work fine
+- The backend is configured to allow `http://localhost:3000`. 
+- CORS setup is handled in `server/src/main.ts` via `app.enableCors()`.
 
 ---
 
@@ -253,19 +226,22 @@ Content-Type: application/json
 
 ```
 chatbot_ai/
-├── client/                 # React Vite frontend
-│   ├── src/
-│   │   ├── App.tsx        # Main chat component
-│   │   ├── App.css        # Styling
-│   │   ├── main.tsx
-│   │   └── index.css
-│   ├── vite.config.ts
-│   └── tsconfig.json
-├── server/
-│   └── index.ts           # Express API server
+├── app/                    # Next.js App Router (Frontend)
+│   ├── page.tsx           # Server Component (SSR Entry)
+│   ├── layout.tsx         # Global Layout
+│   └── App.scss           # Global Styles
+├── components/             # React Client Components
+│   └── ChatUI.tsx         # Interactive Chat Interface
+├── server/                 # NestJS Application (Backend)
+│   └── src/
+│       ├── chat/          # Chat Module Logic
+│       │   ├── chat.controller.ts
+│       │   ├── chat.service.ts
+│       │   └── chat.module.ts
+│       ├── main.ts        # NestJS Entry Point
+│       └── app.module.ts  # Root Module
 ├── .env                    # API keys
-├── .prettierrc             # Code formatting
-└── package.json
+└── package.json            # Scripts & Workspace Dependencies
 ```
 
 ---

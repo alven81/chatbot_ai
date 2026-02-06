@@ -9,7 +9,7 @@ import { RunnableSequence } from "@langchain/core/runnables";
 import { formatDocumentsAsString } from "@langchain/classic/util/document";
 import { ChatHandler, chat } from "../utils/chat";
 import { BaseMessage, AIMessage, HumanMessage } from "@langchain/core/messages";
-import {ChatGoogleGenerativeAI} from "@langchain/google-genai";
+//import {ChatGoogleGenerativeAI} from "@langchain/google-genai";
 
 const prompt = ChatPromptTemplate.fromMessages([
   [
@@ -31,7 +31,7 @@ const llm = new ChatOpenAI({
 // Google chat LLM
 // const llm = new ChatGoogleGenerativeAI({
 //   model: "gemini-2.5-flash",   // if this model is not available anymore then please check another available model from google gemini api documentation
-  
+
 //   // Important Note: There is a problem with maxOutputTokens parameters in google langchain package, it causes error
 //   // Don't use it for now, I will update the code in future if langchain team fixes this issue
 //   // maxOutputTokens: 500,
