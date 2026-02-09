@@ -5,14 +5,14 @@ import { ImageProcessingModule } from "./image-processing/image-processing.modul
 import { LanguageLearningModule } from "./language-learning/language-learning.module";
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ".env",
-    }),
-    ChatModule,
-    ImageProcessingModule,
-    LanguageLearningModule,
-  ],
+    imports: [
+        ConfigModule.forRoot({
+            isGlobal: true,
+            envFilePath: ".env",
+        }),
+        ChatModule,
+        ImageProcessingModule,
+        LanguageLearningModule,
+    ],
 })
 export class AppModule {}

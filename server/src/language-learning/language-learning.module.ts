@@ -4,8 +4,8 @@ import { LanguageLearningController } from "./language-learning.controller";
 import { LanguageLearningService } from "./language-learning.service";
 
 @Module({
-  imports: [ConfigModule],
-  controllers: [LanguageLearningController],
-  providers: [LanguageLearningService],
+    imports: [ConfigModule],
+    controllers: [LanguageLearningController],
+    providers: [LanguageLearningService],
 })
 export class LanguageLearningModule {}

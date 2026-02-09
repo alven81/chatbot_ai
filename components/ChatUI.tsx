@@ -4,240 +4,294 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  isStreaming?: boolean;
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    isStreaming?: boolean;
 }
 
 interface ChatUIProps {
-  initialStatus: any;
+    initialStatus: any;
 }
 
 const API_URL = "http://localhost:3001";
 
-export default function ChatUI({ initialStatus }: ChatUIProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [useStreaming, setUseStreaming] = useState(true);
-  const [sessionId] = useState(() => `session-${Date.now()}`);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+const ChatUI = ({ initialStatus }: ChatUIProps) => {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [useStreaming, setUseStreaming] = useState(true);
+    const [sessionId] = useState(() => `session-${Date.now()}`);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: "user",
-      content: input.trim(),
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
-    const assistantMessageId = `msg-${Date.now()}-assistant`;
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
 
-    if (useStreaming) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMessageId,
-          role: "assistant",
-          content: "",
-          isStreaming: true,
-        },
-      ]);
+    const sendMessage = async () => {
+        if (!input.trim() || isLoading) return;
 
-      try {
-        const response = await fetch(`${API_URL}/api/chat/stream`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMessage.content, sessionId }),
-        });
+        const userMessage: Message = {
+            id: `msg-${Date.now()}`,
+            role: "user",
+            content: input.trim(),
+        };
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
+        setMessages((prev) => [...prev, userMessage]);
+        setInput("");
+        setIsLoading(true);
 
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        const assistantMessageId = `msg-${Date.now()}-assistant`;
 
-            const text = decoder.decode(value);
-            const lines = text.split("\n");
+        if (useStreaming) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    content: "",
+                    isStreaming: true,
+                },
+            ]);
 
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  if (data.chunk) {
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === assistantMessageId
-                          ? { ...msg, content: msg.content + data.chunk }
-                          : msg
-                      )
-                    );
-                  }
-                  if (data.done) {
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === assistantMessageId
-                          ? { ...msg, isStreaming: false }
-                          : msg
-                      )
-                    );
-                  }
-                } catch (e) {}
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Stream error:", error);
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: "Error: Failed to get response",
-                  isStreaming: false,
+            try {
+                const response = await fetch(`${API_URL}/api/chat/stream`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: userMessage.content,
+                        sessionId,
+                    }),
+                });
+
+                const reader = response.body?.getReader();
+                const decoder = new TextDecoder();
+
+                if (reader) {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        const text = decoder.decode(value);
+                        const lines = text.split("\n");
+
+                        for (const line of lines) {
+                            if (line.startsWith("data: ")) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    if (data.chunk) {
+                                        setMessages((prev) =>
+                                            prev.map((msg) =>
+                                                msg.id === assistantMessageId
+                                                    ? {
+                                                          ...msg,
+                                                          content:
+                                                              msg.content +
+                                                              data.chunk,
+                                                      }
+                                                    : msg
+                                            )
+                                        );
+                                    }
+                                    if (data.done) {
+                                        setMessages((prev) =>
+                                            prev.map((msg) =>
+                                                msg.id === assistantMessageId
+                                                    ? {
+                                                          ...msg,
+                                                          isStreaming: false,
+                                                      }
+                                                    : msg
+                                            )
+                                        );
+                                    }
+                                } catch (e) {}
+                            }
+                        }
+                    }
                 }
-              : msg
-          )
-        );
-      }
-    } else {
-      try {
-        const response = await fetch(`${API_URL}/api/chat/history`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMessage.content, sessionId }),
-        });
+            } catch (error) {
+                console.error("Stream error:", error);
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg.id === assistantMessageId
+                            ? {
+                                  ...msg,
+                                  content: "Error: Failed to get response",
+                                  isStreaming: false,
+                              }
+                            : msg
+                    )
+                );
+            }
+        } else {
+            try {
+                const response = await fetch(`${API_URL}/api/chat/history`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: userMessage.content,
+                        sessionId,
+                    }),
+                });
 
-        const data = await response.json();
-        setMessages((prev) => [
-          ...prev,
-          { id: assistantMessageId, role: "assistant", content: data.response },
-        ]);
-      } catch (error) {
-        console.error("Chat error:", error);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: assistantMessageId,
-            role: "assistant",
-            content: "Error: Failed to get response",
-          },
-        ]);
-      }
-    }
+                const data = await response.json();
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: assistantMessageId,
+                        role: "assistant",
+                        content: data.response,
+                    },
+                ]);
+            } catch (error) {
+                console.error("Chat error:", error);
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: assistantMessageId,
+                        role: "assistant",
+                        content: "Error: Failed to get response",
+                    },
+                ]);
+            }
+        }
 
-    setIsLoading(false);
-    inputRef.current?.focus();
-  };
+        setIsLoading(false);
+        inputRef.current?.focus();
+    };
 
-  const clearChat = async () => {
-    try {
-      await fetch(`${API_URL}/api/chat/clear`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      });
-      setMessages([]);
-    } catch (error) {
-      console.error("Clear error:", error);
-    }
-  };
+    const clearChat = async () => {
+        try {
+            await fetch(`${API_URL}/api/chat/clear`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId }),
+            });
+            setMessages([]);
+        } catch (error) {
+            console.error("Clear error:", error);
+        }
+    };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    };
 
-  return (
-    <div className="app">
-      <header className="header">
-        <div>
-          <h1>🤖 AI Chatbot</h1>
-          <p style={{ fontSize: "0.7rem", opacity: 0.8 }}>
-            Running on: {initialStatus.llm}
-          </p>
-          <Link
-            href="/"
-            style={{ color: "#ffffff", textDecoration: "underline" }}
-          >
-            Go back to Home
-          </Link>
+    return (
+        <div className="app d-flex flex-column vh-100 mx-auto bg-white shadow-lg">
+            <header className="app-header-gradient d-flex justify-content-between align-items-center p-3 text-white">
+                <div>
+                    <h1 className="h5 fw-semibold mb-0">🤖 AI Chatbot</h1>
+                    <p className="small opacity-75 mb-1">
+                        Running on: {initialStatus.llm}
+                    </p>
+                    <Link
+                        href="/"
+                        className="text-white text-decoration-underline small"
+                    >
+                        Go back to Home
+                    </Link>
+                </div>
+                <div className="d-flex gap-3 align-items-center">
+                    <label
+                        className="d-flex align-items-center gap-2 small"
+                        role="button"
+                    >
+                        <input
+                            type="checkbox"
+                            className="form-check-input"
+                            checked={useStreaming}
+                            onChange={(e) => setUseStreaming(e.target.checked)}
+                        />
+                        <span>Streaming</span>
+                    </label>
+                    <button
+                        className="btn btn-outline-light btn-sm"
+                        onClick={clearChat}
+                    >
+                        Clear Chat
+                    </button>
+                </div>
+            </header>
+
+            <main className="flex-grow-1 overflow-hidden d-flex flex-column">
+                <div className="chat-messages d-flex flex-column gap-3 p-4">
+                    {messages.length === 0 && (
+                        <div className="d-flex justify-content-center align-items-center h-100 text-secondary fs-5">
+                            <p>👋 Hello! Ask me anything...</p>
+                        </div>
+                    )}
+                    {messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`message d-flex gap-2 ${
+                                msg.role === "user"
+                                    ? "align-self-end flex-row-reverse"
+                                    : "align-self-start"
+                            }`}
+                        >
+                            <div
+                                className="d-flex align-items-center justify-content-center fs-5 flex-shrink-0"
+                                style={{ width: 36, height: 36 }}
+                            >
+                                {msg.role === "user" ? "👤" : "🤖"}
+                            </div>
+                            <div
+                                className={`px-3 py-2 rounded-4 lh-base ${
+                                    msg.role === "user"
+                                        ? "message-bubble-user text-white"
+                                        : "message-bubble-assistant bg-light text-dark"
+                                }`}
+                                style={{
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                }}
+                            >
+                                {msg.content}
+                                {msg.isStreaming && (
+                                    <span className="cursor">▌</span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                </div>
+            </main>
+
+            <footer className="d-flex gap-2 p-3 bg-light border-top">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className="form-control chat-input"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyUp={handleKeyPress}
+                    placeholder="Type your message..."
+                    disabled={isLoading}
+                />
+                <button
+                    className="btn btn-send text-white fw-semibold px-4"
+                    onClick={sendMessage}
+                    disabled={isLoading || !input.trim()}
+                >
+                    {isLoading ? "..." : "Send"}
+                </button>
+            </footer>
         </div>
-        <div className="controls">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={useStreaming}
-              onChange={(e) => setUseStreaming(e.target.checked)}
-            />
-            <span>Streaming</span>
-          </label>
-          <button className="clear-btn" onClick={clearChat}>
-            Clear Chat
-          </button>
-        </div>
-      </header>
+    );
+};
 
-      <main className="chat-container">
-        <div className="messages">
-          {messages.length === 0 && (
-            <div className="empty-state">
-              <p>👋 Hello! Ask me anything...</p>
-            </div>
-          )}
-          {messages.map((msg) => (
-            <div key={msg.id} className={`message ${msg.role}`}>
-              <div className="message-avatar">
-                {msg.role === "user" ? "👤" : "🤖"}
-              </div>
-              <div className="message-content">
-                {msg.content}
-                {msg.isStreaming && <span className="cursor">▌</span>}
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
-
-      <footer className="input-container">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyUp={handleKeyPress}
-          placeholder="Type your message..."
-          disabled={isLoading}
-        />
-        <button onClick={sendMessage} disabled={isLoading || !input.trim()}>
-          {isLoading ? "..." : "Send"}
-        </button>
-      </footer>
-    </div>
-  );
-}
+export default ChatUI;

@@ -1,7 +1,7 @@
 import LanguageLearningUI from "@/components/languageLearning/LanguageLearningUI";
 
 const LanguageLearningPage = () => {
-  return <LanguageLearningUI />;
+    return <LanguageLearningUI />;
 };
 
 export default LanguageLearningPage;

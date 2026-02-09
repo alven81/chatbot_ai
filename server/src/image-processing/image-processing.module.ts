@@ -4,8 +4,8 @@ import { ImageProcessingController } from "./image-processing.controller";
 import { ImageProcessingService } from "./image-processing.service";
 
 @Module({
-  imports: [ConfigModule],
-  controllers: [ImageProcessingController],
-  providers: [ImageProcessingService],
+    imports: [ConfigModule],
+    controllers: [ImageProcessingController],
+    providers: [ImageProcessingService],
 })
 export class ImageProcessingModule {}
