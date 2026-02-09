@@ -432,13 +432,13 @@ const LanguageLearningUI = () => {
                                 <p>
                                     Start typing in{" "}
                                     <strong>{learningLanguage}</strong> (or{" "}
-                                    <strong>{userLanguage}</strong> and
-                                    I&apos;ll help you translate).
+                                    <strong>{userLanguage}</strong>) and
+                                    I&apos;ll help you translate.
                                 </p>
                                 <p className="small opacity-75 mt-2">
                                     I&apos;ll respond in {learningLanguage},
                                     translate your messages to {userLanguage},
-                                    and correct any mistakes you make.
+                                    and correct any mistakes you make cute!
                                 </p>
                             </div>
                         </div>
