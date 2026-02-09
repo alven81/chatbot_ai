@@ -47,6 +47,22 @@ const Home = () => {
         >
           Image Processing
         </Link>
+
+        <Link
+          href="/language-learning"
+          style={{
+            padding: "1rem 2rem",
+            fontSize: "1.2rem",
+            backgroundColor: "#e67e22",
+            color: "white",
+            borderRadius: "8px",
+            textDecoration: "none",
+            fontWeight: "bold",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+          }}
+        >
+          AI Language Learning
+        </Link>
       </div>
     </main>
   );

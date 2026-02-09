@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import type { Metadata } from "next";
 import "./globals.scss";
+import "./App.scss";
 
 export const metadata: Metadata = {
   title: "Chatbot AI",

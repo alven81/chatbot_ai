@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { processImage as processImageRequest } from "../services/request";
+import { processImage as processImageRequest } from "../../services/request";
 import "./ImageProcessing.scss";
 
 export default function ImageProcessingUI() {
@@ -103,52 +103,48 @@ export default function ImageProcessingUI() {
   const renderProcessedContent = () => {
     if (isProcessing) {
       return (
-        <div className="ip-placeholder">
-          <div className="ip-spinner" />
+        <div className="placeholder">
+          <div className="spinner" />
           <p>Processing your image...</p>
-          <p className="ip-hint">This may take 15–30 seconds</p>
+          <p className="hint">This may take 15–30 seconds</p>
         </div>
       );
     }
 
     if (processedImage) {
       return (
-        <img
-          src={processedImage}
-          alt="Processed result"
-          className="ip-preview"
-        />
+        <img src={processedImage} alt="Processed result" className="preview" />
       );
     }
 
     return (
-      <div className="ip-placeholder">
-        <span className="ip-upload-icon">🎨</span>
+      <div className="placeholder">
+        <span className="upload-icon">🎨</span>
         <p>Processed image will appear here</p>
       </div>
     );
   };
 
   return (
-    <div className="image-processing">
-      <header className="ip-header">
+    <div className="app image-processing">
+      <header className="header">
         <div>
           <h1>🖼️ AI Image Processing</h1>
-          <p className="ip-subtitle">
+          <p className="subtitle">
             Remove background &amp; change clothing style using OpenAI
             gpt-image-1
           </p>
-          <Link href="/" className="ip-back-link">
+          <Link href="/" className="back-link">
             Go back to Home
           </Link>
         </div>
-        <button className="ip-reset-btn" onClick={resetAll}>
+        <button className="reset-btn" onClick={resetAll}>
           Reset
         </button>
       </header>
 
-      <div className="ip-controls">
-        <div className="ip-style-input">
+      <div className="controls">
+        <div className="style-input">
           <label htmlFor="styleDescription">Clothing Style Description</label>
           <input
             id="styleDescription"
@@ -160,28 +156,28 @@ export default function ImageProcessingUI() {
           />
         </div>
 
-        <div className="ip-style-input">
+        <div className="style-input">
           <label htmlFor="aspectRatio">Aspect Ratio</label>
           <select
             id="aspectRatio"
             value={aspectRatio}
             onChange={(e) => setAspectRatio(e.target.value)}
             disabled={isProcessing}
-            className="ip-select"
+            className="select"
           >
             <option value="3:4">3:4 (Portrait)</option>
             <option value="2:3">2:3 (Tall)</option>
           </select>
         </div>
 
-        <div className="ip-style-input">
+        <div className="style-input">
           <label htmlFor="style">Photography Style</label>
           <select
             id="style"
             value={style}
             onChange={(e) => setStyle(e.target.value)}
             disabled={isProcessing}
-            className="ip-select"
+            className="select"
           >
             <option value="photorealistic">Photorealistic</option>
             <option value="artistic">Artistic</option>
@@ -190,14 +186,14 @@ export default function ImageProcessingUI() {
           </select>
         </div>
 
-        <div className="ip-style-input">
+        <div className="style-input">
           <label htmlFor="lighting">Lighting</label>
           <select
             id="lighting"
             value={lighting}
             onChange={(e) => setLighting(e.target.value)}
             disabled={isProcessing}
-            className="ip-select"
+            className="select"
           >
             <option value="cinematic">Cinematic</option>
             <option value="moody">Moody</option>
@@ -206,14 +202,14 @@ export default function ImageProcessingUI() {
           </select>
         </div>
 
-        <div className="ip-style-input">
+        <div className="style-input">
           <label htmlFor="quality">Quality</label>
           <select
             id="quality"
             value={quality}
             onChange={(e) => setQuality(e.target.value)}
             disabled={isProcessing}
-            className="ip-select"
+            className="select"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -223,7 +219,7 @@ export default function ImageProcessingUI() {
         </div>
 
         <button
-          className="ip-process-btn"
+          className="process-btn"
           onClick={processImage}
           disabled={!uploadedImage || !styleDescription.trim() || isProcessing}
         >
@@ -231,40 +227,40 @@ export default function ImageProcessingUI() {
         </button>
       </div>
 
-      {error && <div className="ip-error">{error}</div>}
+      {error && <div className="error-message">{error}</div>}
 
-      <main className="ip-panels">
+      <main className="panels">
         {/* Left Panel — Original Image */}
-        <div className="ip-panel">
-          <h2 className="ip-panel-title">Original Image</h2>
+        <div className="panel">
+          <h2 className="panel-title">Original Image</h2>
           {uploadedImage ? (
             <div
-              className="ip-image-area"
+              className="image-area"
               onDrop={handleDrop}
               onDragOver={handleDragOver}
             >
               <img
                 src={uploadedImage}
                 alt="Uploaded original"
-                className="ip-preview"
+                className="preview"
               />
             </div>
           ) : (
             <button
               type="button"
-              className="ip-image-area ip-upload-zone"
+              className="image-area upload-zone"
               onClick={() => fileInputRef.current?.click()}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
             >
-              <div className="ip-placeholder">
-                <span className="ip-upload-icon">📤</span>
+              <div className="placeholder">
+                <span className="upload-icon">📤</span>
                 <p>Click or drag &amp; drop an image here</p>
-                <p className="ip-hint">PNG, JPG, WEBP — max 10 MB</p>
+                <p className="hint">PNG, JPG, WEBP — max 10 MB</p>
               </div>
             </button>
           )}
-          {uploadedImage && <p className="ip-file-name">{fileName}</p>}
+          {uploadedImage && <p className="file-name">{fileName}</p>}
           <input
             ref={fileInputRef}
             type="file"
@@ -275,14 +271,14 @@ export default function ImageProcessingUI() {
         </div>
 
         {/* Right Panel — Processed Image */}
-        <div className="ip-panel">
-          <h2 className="ip-panel-title">Processed Image</h2>
-          <div className="ip-image-area">{renderProcessedContent()}</div>
+        <div className="panel">
+          <h2 className="panel-title">Processed Image</h2>
+          <div className="image-area">{renderProcessedContent()}</div>
           {processedImage && (
             <a
               href={processedImage}
               download="processed-image.png"
-              className="ip-download-btn"
+              className="download-btn"
             >
               Download Result
             </a>

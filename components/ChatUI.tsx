@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import "../app/App.scss";
 import Link from "next/link";
 
 interface Message {
