@@ -67,7 +67,7 @@ GOOGLE_API_KEY=your_google_api_key
 
 **Run:**
 ```bash
-npm run server
+npm run dev
 ```
 
 ---
@@ -148,7 +148,7 @@ npm run server
 
 5. **Start the server:**
    ```bash
-   npm run server
+   npm run dev
    ```
 
 ---
@@ -227,22 +227,29 @@ This happens if a previous process is still running. Kill it before restarting:
 ```
 chatbot_ai/
 ├── app/                    # Next.js App Router (Frontend)
-│   ├── page.tsx           # Server Component (SSR Entry)
-│   ├── layout.tsx         # Global Layout
-│   └── App.scss           # Global Styles
-├── components/             # React Client Components
-│   └── ChatUI.tsx         # Interactive Chat Interface
+│   ├── chat/              # Chat application page
+│   ├── image-processing/  # Image analysis page
+│   ├── language-learning/ # Language education page
+│   └── page.tsx           # Landing page
+├── components/             # UI Components
+│   ├── ChatUI.tsx         # Standard chat interface
+│   ├── imageProcessing/   # Image processing UI & styles
+│   └── languageLearning/  # Language learning UI & styles
 ├── server/                 # NestJS Application (Backend)
 │   └── src/
-│       ├── chat/          # Chat Module Logic
-│       │   ├── chat.controller.ts
-│       │   ├── chat.service.ts
-│       │   └── chat.module.ts
-│       ├── main.ts        # NestJS Entry Point
-│       └── app.module.ts  # Root Module
+│       ├── chat/          # Chat service logic
+│       ├── image-processing/ # Image analysis logic
+│       └── language-learning/# Language processing logic
+│       └── main.ts        # NestJS Entry Point
 ├── .env                    # API keys
 └── package.json            # Scripts & Workspace Dependencies
 ```
+
+## Core Components
+
+- **ChatUI**: A robust interface for text-based AI interactions, supporting streaming and chat history.
+- **ImageProcessingUI**: Specific UI for uploading and analyzing images via AI.
+- **LanguageLearningUI**: Specialized interface designed for language practice and learning exercises.
 
 ---
 
