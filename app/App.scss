@@ -95,6 +95,24 @@
     }
 }
 
+/* ── Settings Accordion ── */
+.settings-accordion {
+    transition:
+        max-height 0.3s ease-in-out,
+        opacity 0.2s ease-in-out;
+    overflow: hidden;
+
+    &.open {
+        max-height: 500px;
+        opacity: 1;
+    }
+
+    &.collapsed {
+        max-height: 0;
+        opacity: 0;
+    }
+}
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
     .message {

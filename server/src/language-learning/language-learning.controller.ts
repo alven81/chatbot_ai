@@ -49,7 +49,9 @@ export class LanguageLearningController {
             body.message,
             body.sessionId,
             body.learningLanguage,
-            body.userLanguage
+            body.userLanguage,
+            body.learningLevel,
+            body.userProfession
         );
 
         const subscription = stream$.subscribe({

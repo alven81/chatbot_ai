@@ -34,6 +34,26 @@ export class LanguageLearningRequest {
     })
     @IsString()
     userLanguage!: string;
+
+    @ApiProperty({
+        type: String,
+        description: "The user's proficiency level (A1, A2, B1, B2, C1, C2)",
+        required: false,
+        default: "A1",
+    })
+    @IsOptional()
+    @IsString()
+    learningLevel?: string;
+
+    @ApiProperty({
+        type: String,
+        description: "The user's profession (e.g. IT Engineer, Doctor, etc.)",
+        required: false,
+        default: "General",
+    })
+    @IsOptional()
+    @IsString()
+    userProfession?: string;
 }
 
 export class LanguageLearningClearRequest {

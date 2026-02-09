@@ -21,6 +21,7 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [useStreaming, setUseStreaming] = useState(true);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [sessionId] = useState(() => `session-${Date.now()}`);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -167,7 +168,9 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
         }
 
         setIsLoading(false);
-        inputRef.current?.focus();
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 0);
     };
 
     const clearChat = async () => {
@@ -205,27 +208,61 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
                         Go back to Home
                     </Link>
                 </div>
-                <div className="d-flex gap-3 align-items-center">
-                    <label
-                        className="d-flex align-items-center gap-2 small"
-                        role="button"
-                    >
-                        <input
-                            type="checkbox"
-                            className="form-check-input"
-                            checked={useStreaming}
-                            onChange={(e) => setUseStreaming(e.target.checked)}
-                        />
-                        <span>Streaming</span>
-                    </label>
-                    <button
-                        className="btn btn-outline-light btn-sm"
-                        onClick={clearChat}
-                    >
-                        Clear Chat
-                    </button>
-                </div>
             </header>
+
+            <div className="position-relative bg-light border-bottom">
+                <div
+                    className={`settings-accordion ${
+                        isSettingsOpen ? "open" : "collapsed"
+                    }`}
+                >
+                    <div className="d-flex justify-content-between align-items-center p-3">
+                        <div className="d-flex gap-3 align-items-center">
+                            <label
+                                className="d-flex align-items-center gap-2 small fw-semibold text-secondary text-uppercase"
+                                role="button"
+                                style={{ letterSpacing: "0.5px" }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={useStreaming}
+                                    onChange={(e) =>
+                                        setUseStreaming(e.target.checked)
+                                    }
+                                />
+                                <span>Enable Streaming</span>
+                            </label>
+                        </div>
+                        <button
+                            className="btn btn-outline-danger btn-sm fw-semibold"
+                            onClick={clearChat}
+                        >
+                            Clear Chat History
+                        </button>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                    className="btn btn-light btn-sm position-absolute start-50 translate-middle-x d-flex align-items-center justify-content-center shadow-sm"
+                    style={{
+                        bottom: "-12px",
+                        zIndex: 10,
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        padding: 0,
+                        border: "1px solid #dee2e6",
+                        fontSize: "0.6rem",
+                    }}
+                    title={
+                        isSettingsOpen ? "Collapse settings" : "Expand settings"
+                    }
+                >
+                    {isSettingsOpen ? "▲" : "▼"}
+                </button>
+            </div>
 
             <main className="flex-grow-1 overflow-hidden d-flex flex-column">
                 <div className="chat-messages d-flex flex-column gap-3 p-4">

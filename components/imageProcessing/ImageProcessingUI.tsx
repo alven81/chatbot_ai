@@ -13,10 +13,16 @@ const ImageProcessingUI = () => {
     const [style, setStyle] = useState("photorealistic");
     const [lighting, setLighting] = useState("cinematic");
     const [quality, setQuality] = useState("high");
+    const [isSettingsOpen, setIsSettingsOpen] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const styleInputRef = useRef<HTMLInputElement>(null);
+
+    React.useEffect(() => {
+        styleInputRef.current?.focus();
+    }, []);
 
     const handleFileSelect = (file: File) => {
         if (!file.type.startsWith("image/")) {
@@ -86,6 +92,9 @@ const ImageProcessingUI = () => {
             );
         } finally {
             setIsProcessing(false);
+            setTimeout(() => {
+                styleInputRef.current?.focus();
+            }, 0);
         }
     };
 
@@ -159,117 +168,150 @@ const ImageProcessingUI = () => {
                 </button>
             </header>
 
-            <div className="d-flex flex-wrap gap-3 p-3 bg-light border-bottom align-items-end">
-                <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                    <label
-                        htmlFor="styleDescription"
-                        className="form-label small fw-semibold text-secondary"
-                    >
-                        Clothing Style Description
-                    </label>
-                    <input
-                        id="styleDescription"
-                        type="text"
-                        className="form-control"
-                        value={styleDescription}
-                        onChange={(e) => setStyleDescription(e.target.value)}
-                        placeholder='e.g. "elegant black tuxedo", "casual denim jacket with white t-shirt"'
-                        disabled={isProcessing}
-                    />
-                </div>
+            <div className="position-relative bg-light border-bottom">
+                <div
+                    className={`settings-accordion ${
+                        isSettingsOpen ? "open" : "collapsed"
+                    }`}
+                >
+                    <div className="d-flex flex-wrap gap-3 p-3 align-items-end">
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="styleDescription"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Clothing Style Description
+                            </label>
+                            <input
+                                ref={styleInputRef}
+                                id="styleDescription"
+                                type="text"
+                                className="form-control"
+                                value={styleDescription}
+                                onChange={(e) =>
+                                    setStyleDescription(e.target.value)
+                                }
+                                placeholder='e.g. "elegant black tuxedo", "casual denim jacket with white t-shirt"'
+                                disabled={isProcessing}
+                            />
+                        </div>
 
-                <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                    <label
-                        htmlFor="aspectRatio"
-                        className="form-label small fw-semibold text-secondary"
-                    >
-                        Aspect Ratio
-                    </label>
-                    <select
-                        id="aspectRatio"
-                        className="form-select"
-                        value={aspectRatio}
-                        onChange={(e) => setAspectRatio(e.target.value)}
-                        disabled={isProcessing}
-                    >
-                        <option value="3:4">3:4 (Portrait)</option>
-                        <option value="2:3">2:3 (Tall)</option>
-                    </select>
-                </div>
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="aspectRatio"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Aspect Ratio
+                            </label>
+                            <select
+                                id="aspectRatio"
+                                className="form-select"
+                                value={aspectRatio}
+                                onChange={(e) => setAspectRatio(e.target.value)}
+                                disabled={isProcessing}
+                            >
+                                <option value="3:4">3:4 (Portrait)</option>
+                                <option value="2:3">2:3 (Tall)</option>
+                            </select>
+                        </div>
 
-                <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                    <label
-                        htmlFor="style"
-                        className="form-label small fw-semibold text-secondary"
-                    >
-                        Photography Style
-                    </label>
-                    <select
-                        id="style"
-                        className="form-select"
-                        value={style}
-                        onChange={(e) => setStyle(e.target.value)}
-                        disabled={isProcessing}
-                    >
-                        <option value="photorealistic">Photorealistic</option>
-                        <option value="artistic">Artistic</option>
-                        <option value="editorial">Editorial</option>
-                        <option value="fashion">Fashion</option>
-                    </select>
-                </div>
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="style"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Photography Style
+                            </label>
+                            <select
+                                id="style"
+                                className="form-select"
+                                value={style}
+                                onChange={(e) => setStyle(e.target.value)}
+                                disabled={isProcessing}
+                            >
+                                <option value="photorealistic">
+                                    Photorealistic
+                                </option>
+                                <option value="artistic">Artistic</option>
+                                <option value="editorial">Editorial</option>
+                                <option value="fashion">Fashion</option>
+                            </select>
+                        </div>
 
-                <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                    <label
-                        htmlFor="lighting"
-                        className="form-label small fw-semibold text-secondary"
-                    >
-                        Lighting
-                    </label>
-                    <select
-                        id="lighting"
-                        className="form-select"
-                        value={lighting}
-                        onChange={(e) => setLighting(e.target.value)}
-                        disabled={isProcessing}
-                    >
-                        <option value="cinematic">Cinematic</option>
-                        <option value="moody">Moody</option>
-                        <option value="natural">Natural</option>
-                        <option value="studio">Studio</option>
-                    </select>
-                </div>
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="lighting"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Lighting
+                            </label>
+                            <select
+                                id="lighting"
+                                className="form-select"
+                                value={lighting}
+                                onChange={(e) => setLighting(e.target.value)}
+                                disabled={isProcessing}
+                            >
+                                <option value="cinematic">Cinematic</option>
+                                <option value="moody">Moody</option>
+                                <option value="natural">Natural</option>
+                                <option value="studio">Studio</option>
+                            </select>
+                        </div>
 
-                <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                    <label
-                        htmlFor="quality"
-                        className="form-label small fw-semibold text-secondary"
-                    >
-                        Quality
-                    </label>
-                    <select
-                        id="quality"
-                        className="form-select"
-                        value={quality}
-                        onChange={(e) => setQuality(e.target.value)}
-                        disabled={isProcessing}
-                    >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="ultra">Ultra</option>
-                    </select>
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="quality"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Quality
+                            </label>
+                            <select
+                                id="quality"
+                                className="form-select"
+                                value={quality}
+                                onChange={(e) => setQuality(e.target.value)}
+                                disabled={isProcessing}
+                            >
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="ultra">Ultra</option>
+                            </select>
+                        </div>
+
+                        <button
+                            className="btn btn-primary fw-semibold"
+                            onClick={processImage}
+                            disabled={
+                                !uploadedImage ||
+                                !styleDescription.trim() ||
+                                isProcessing
+                            }
+                        >
+                            {isProcessing ? "Processing..." : "Process Image"}
+                        </button>
+                    </div>
                 </div>
 
                 <button
-                    className="btn btn-primary fw-semibold"
-                    onClick={processImage}
-                    disabled={
-                        !uploadedImage ||
-                        !styleDescription.trim() ||
-                        isProcessing
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                    className="btn btn-light btn-sm position-absolute start-50 translate-middle-x d-flex align-items-center justify-content-center shadow-sm"
+                    style={{
+                        bottom: "-12px",
+                        zIndex: 10,
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        padding: 0,
+                        border: "1px solid #dee2e6",
+                        fontSize: "0.6rem",
+                    }}
+                    title={
+                        isSettingsOpen ? "Collapse settings" : "Expand settings"
                     }
                 >
-                    {isProcessing ? "Processing..." : "Process Image"}
+                    {isSettingsOpen ? "▲" : "▼"}
                 </button>
             </div>
 

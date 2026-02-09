@@ -1,5 +1,4 @@
-import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ChatOpenAI } from "@langchain/openai";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage, AIMessage, HumanMessage } from "@langchain/core/messages";
@@ -16,8 +15,6 @@ export class LanguageLearningService implements OnModuleInit {
     private llm!: ChatOpenAI;
     private analysisLlm!: ChatOpenAI;
     private readonly outputParser = new StringOutputParser();
-
-    constructor(@Inject(ConfigService) private configService: ConfigService) {}
 
     onModuleInit() {
         this.initializeLLM();
@@ -49,14 +46,15 @@ export class LanguageLearningService implements OnModuleInit {
         message: string,
         learningLanguage: string,
         userLanguage: string
-    ): Promise<{ translation: string; corrections: string }> {
+    ): Promise<{ translation: string; corrections: string; proposal: string }> {
         const prompt = ChatPromptTemplate.fromMessages([
             [
                 "system",
                 `You are a language analysis assistant. The user is learning ${learningLanguage} and speaks ${userLanguage}.
-Analyze the user's message and return a JSON object with exactly two keys:
-- "translation": translate the user's message into ${userLanguage}. If the message is already in ${userLanguage}, translate it to ${learningLanguage} instead and note that.
-- "corrections": if the user made any grammar, spelling, or word-choice mistakes in ${learningLanguage}, explain them clearly in ${userLanguage}. If the message was perfect or was written in ${userLanguage}, set this to an empty string "".
+Analyze the user's message and return a JSON object with exactly three keys:
+- "proposal": Rewrite the user's message correctly in ${learningLanguage}. If the message was already correct or written in ${userLanguage}, provide a natural, correct version of what they meant in ${learningLanguage}.
+- "translation": Translate the "proposal" version into ${userLanguage}.
+- "corrections": If the user made any grammar, spelling, or word-choice mistakes in ${learningLanguage}, explain them clearly in ${userLanguage}. If the message was perfect or written in ${userLanguage}, mention why the proposal is a better more natural alternative or keep it brief. 
 
 Return ONLY valid JSON, no markdown fences.`,
             ],
@@ -69,12 +67,13 @@ Return ONLY valid JSON, no markdown fences.`,
             const raw = await chain.invoke({ message });
             const parsed = JSON.parse(raw);
             return {
+                proposal: parsed.proposal || "",
                 translation: parsed.translation || "",
                 corrections: parsed.corrections || "",
             };
         } catch (err) {
             this.logger.warn("Failed to parse analysis response", err);
-            return { translation: "", corrections: "" };
+            return { proposal: "", translation: "", corrections: "" };
         }
     }
 
@@ -86,11 +85,18 @@ Return ONLY valid JSON, no markdown fences.`,
         message: string,
         sessionId: string = "default",
         learningLanguage: string = "Spanish",
-        userLanguage: string = "English"
+        userLanguage: string = "English",
+        learningLevel: string = "A1",
+        userProfession: string = "General"
     ): Observable<any> {
         return new Observable((subscriber) => {
             const history = this.getHistory(sessionId);
-            const chain = this.getTutorChain(learningLanguage, userLanguage);
+            const chain = this.getTutorChain(
+                learningLanguage,
+                userLanguage,
+                learningLevel,
+                userProfession
+            );
 
             (async () => {
                 try {
@@ -118,6 +124,11 @@ Return ONLY valid JSON, no markdown fences.`,
 
                     // Send analysis results
                     const analysis = await analysisPromise;
+                    if (analysis.proposal) {
+                        subscriber.next({
+                            data: { proposal: analysis.proposal },
+                        });
+                    }
                     if (analysis.translation) {
                         subscriber.next({
                             data: { translation: analysis.translation },
@@ -154,20 +165,30 @@ Return ONLY valid JSON, no markdown fences.`,
         return this.chatHistories.get(sessionId)!;
     }
 
-    private getTutorChain(learningLanguage: string, userLanguage: string) {
+    private getTutorChain(
+        learningLanguage: string,
+        userLanguage: string,
+        learningLevel: string,
+        userProfession: string
+    ) {
         const prompt = ChatPromptTemplate.fromMessages([
             [
                 "system",
                 `You are a friendly and patient language tutor helping a student learn ${learningLanguage}. The student's native language is ${userLanguage}.
 
+User Profile:
+- Proficiency Level: ${learningLevel}
+- Profession: ${userProfession}
+
 Your behavior:
 1. Always respond primarily in ${learningLanguage}.
 2. Keep your responses conversational — ask follow-up questions to keep the conversation going naturally.
-3. Adapt difficulty to the student's level based on their messages.
+3. Adapt difficulty to the student's level (${learningLevel}) based on their messages.
 4. Occasionally introduce new vocabulary or expressions, explaining them briefly in ${userLanguage} within parentheses.
 5. If the student writes in ${userLanguage}, gently encourage them to try in ${learningLanguage}, but still answer their question.
 6. Be encouraging and supportive. Celebrate progress.
 7. Mix topics: daily life, culture, travel, hobbies — whatever keeps the student engaged.
+   - Since the user is a ${userProfession}, occasionally incorporate relevant professional vocabulary or scenarios if appropriate, but keep it balanced with general conversation.
 8. Keep responses concise (2-4 sentences typically) to encourage back-and-forth dialogue.`,
             ],
             new MessagesPlaceholder("chat_history"),

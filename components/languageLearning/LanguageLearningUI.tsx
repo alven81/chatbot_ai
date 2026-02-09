@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import tutorImage from "@/app/assets/images/ll-girl.jpg";
 import "./LanguageLearning.scss";
 
 interface Message {
@@ -9,6 +11,7 @@ interface Message {
     role: "user" | "assistant";
     content: string;
     translation?: string;
+    proposal?: string;
     corrections?: string;
     isStreaming?: boolean;
 }
@@ -40,12 +43,33 @@ const LANGUAGES = [
     "Hebrew",
 ];
 
+const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+const PROFESSIONS = [
+    "General",
+    "IT Engineer",
+    "Doctor",
+    "Lawyer",
+    "Business Executive",
+    "Student",
+    "Tourist",
+    "Chef",
+    "Software Designer",
+    "Teacher",
+    "Sales Representative",
+    "Architect",
+    "Journalist",
+];
+
 const LanguageLearningUI = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [learningLanguage, setLearningLanguage] = useState("Polish");
     const [userLanguage, setUserLanguage] = useState("Belorussian");
+    const [learningLevel, setLearningLevel] = useState("A1");
+    const [userProfession, setUserProfession] = useState("General");
+    const [isSettingsOpen, setIsSettingsOpen] = useState(true);
     const [sessionId] = useState(() => `lang-session-${Date.now()}`);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +123,8 @@ const LanguageLearningUI = () => {
                         sessionId,
                         learningLanguage,
                         userLanguage,
+                        learningLevel,
+                        userProfession,
                     }),
                 }
             );
@@ -127,6 +153,18 @@ const LanguageLearningUI = () => {
                                                       content:
                                                           msg.content +
                                                           data.chunk,
+                                                  }
+                                                : msg
+                                        )
+                                    );
+                                }
+                                if (data.proposal) {
+                                    setMessages((prev) =>
+                                        prev.map((msg) =>
+                                            msg.id === assistantMessageId
+                                                ? {
+                                                      ...msg,
+                                                      proposal: data.proposal,
                                                   }
                                                 : msg
                                         )
@@ -188,7 +226,9 @@ const LanguageLearningUI = () => {
         }
 
         setIsLoading(false);
-        inputRef.current?.focus();
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 0);
     };
 
     const clearChat = async () => {
@@ -213,58 +253,26 @@ const LanguageLearningUI = () => {
 
     return (
         <div className="app language-learning d-flex flex-column vh-100 mx-auto bg-white shadow-lg">
-            <header className="header-orange d-flex justify-content-between align-items-center p-3 text-white">
-                <div>
-                    <h1 className="h5 fw-semibold mb-0">
-                        🌍 AI Language Learning
-                    </h1>
-                    <p className="small opacity-75 mb-1">
-                        Powered by GPT-4o &middot; Your personal language tutor
-                    </p>
-                    <Link
-                        href="/"
-                        className="text-white text-decoration-underline small"
-                    >
-                        Go back to Home
-                    </Link>
-                </div>
-                <div className="d-flex gap-3 align-items-center">
-                    <div className="d-flex flex-column gap-1 small">
-                        <label className="d-flex align-items-center gap-2">
-                            I speak:
-                            <select
-                                value={userLanguage}
-                                onChange={(e) =>
-                                    setUserLanguage(e.target.value)
-                                }
-                                className="language-select"
-                            >
-                                {LANGUAGES.map((lang) => (
-                                    <option key={lang} value={lang}>
-                                        {lang}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="d-flex align-items-center gap-2">
-                            Learning:
-                            <select
-                                value={learningLanguage}
-                                onChange={(e) =>
-                                    setLearningLanguage(e.target.value)
-                                }
-                                className="language-select"
-                            >
-                                {LANGUAGES.map((lang) => (
-                                    <option key={lang} value={lang}>
-                                        {lang}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+            <header className="header-orange d-flex flex-column justify-content-between align-items-center p-3 text-white">
+                <div className="w-100 d-flex flex-wrap justify-content-between align-items-start gap-1">
+                    <div className="d-flex flex-column">
+                        <h1 className="h5 fw-semibold mb-0">
+                            🌍 AI Language Learning
+                        </h1>
+                        <p className="small opacity-75 mb-1">
+                            Powered by GPT-4o &middot; Your personal language
+                            tutor
+                        </p>
+                        <Link
+                            href="/"
+                            className="text-white text-decoration-underline small"
+                        >
+                            Go back to Home
+                        </Link>
                     </div>
+
                     <button
-                        className="btn btn-outline-light btn-sm"
+                        className="btn btn-outline-light"
                         onClick={clearChat}
                     >
                         Clear Chat
@@ -272,21 +280,167 @@ const LanguageLearningUI = () => {
                 </div>
             </header>
 
+            <div className="position-relative bg-light border-bottom">
+                <div
+                    className={`settings-accordion ${
+                        isSettingsOpen ? "open" : "collapsed"
+                    }`}
+                >
+                    <div className="d-flex flex-wrap gap-3 p-3 align-items-end">
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="user-language-select"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                I speak:
+                            </label>
+                            <select
+                                id="user-language-select"
+                                value={userLanguage}
+                                onChange={(e) =>
+                                    setUserLanguage(e.target.value)
+                                }
+                                className="form-select"
+                            >
+                                {LANGUAGES.map((lang) => (
+                                    <option key={lang} value={lang}>
+                                        {lang}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="learning-language-select"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Learning:
+                            </label>
+                            <select
+                                id="learning-language-select"
+                                value={learningLanguage}
+                                onChange={(e) =>
+                                    setLearningLanguage(e.target.value)
+                                }
+                                className="form-select"
+                            >
+                                {LANGUAGES.map((lang) => (
+                                    <option key={lang} value={lang}>
+                                        {lang}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex-grow-1" style={{ minWidth: 100 }}>
+                            <label
+                                htmlFor="learning-level-select"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Level:
+                            </label>
+                            <select
+                                id="learning-level-select"
+                                value={learningLevel}
+                                onChange={(e) =>
+                                    setLearningLevel(e.target.value)
+                                }
+                                className="form-select"
+                            >
+                                {LEVELS.map((level) => (
+                                    <option key={level} value={level}>
+                                        {level}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="user-profession-select"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Profession:
+                            </label>
+                            <select
+                                id="user-profession-select"
+                                value={userProfession}
+                                onChange={(e) =>
+                                    setUserProfession(e.target.value)
+                                }
+                                className="form-select"
+                            >
+                                {PROFESSIONS.map((prof) => (
+                                    <option key={prof} value={prof}>
+                                        {prof}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                    className="btn btn-light btn-sm position-absolute start-50 translate-middle-x d-flex align-items-center justify-content-center shadow-sm"
+                    style={{
+                        bottom: "-12px",
+                        zIndex: 10,
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        padding: 0,
+                        border: "1px solid #dee2e6",
+                        fontSize: "0.6rem",
+                    }}
+                    title={
+                        isSettingsOpen ? "Collapse settings" : "Expand settings"
+                    }
+                >
+                    {isSettingsOpen ? "▲" : "▼"}
+                </button>
+            </div>
+
             <main className="flex-grow-1 overflow-hidden d-flex flex-column">
-                <div className="chat-messages d-flex flex-column gap-3 p-4">
+                <div className="chat-messages d-flex flex-column gap-3 p-2">
                     {messages.length === 0 && (
-                        <div className="d-flex flex-column justify-content-center align-items-center h-100 text-secondary fs-5">
-                            <p>
-                                🌍 Hello! I&apos;m your language tutor. Start
-                                typing in <strong>{learningLanguage}</strong>{" "}
-                                (or <strong>{userLanguage}</strong> and
-                                I&apos;ll help you translate).
-                            </p>
-                            <p className="small opacity-75 mt-2">
-                                I&apos;ll respond in {learningLanguage},
-                                translate your messages to {userLanguage}, and
-                                correct any mistakes you make.
-                            </p>
+                        <div className="d-flex flex-wrap flex-md-nowrap align-items-center justify-content-center h-100 text-secondary fs-5 px-5 gap-5">
+                            <div className="flex-shrink-0">
+                                <Image
+                                    src={tutorImage}
+                                    alt="Language Tutor"
+                                    width={350}
+                                    height={500}
+                                    style={{
+                                        borderRadius: "1.5rem",
+                                        objectFit: "cover",
+                                    }}
+                                />
+                            </div>
+                            <div
+                                className="d-flex flex-column align-items-start text-start"
+                                style={{ maxWidth: "450px" }}
+                            >
+                                <p>
+                                    🌍 Hello! I&apos;m your language tutor. I
+                                    see you&apos;re at{" "}
+                                    <strong>{learningLevel}</strong> level and
+                                    interested in{" "}
+                                    <strong>{userProfession}</strong>.
+                                </p>
+                                <p>
+                                    Start typing in{" "}
+                                    <strong>{learningLanguage}</strong> (or{" "}
+                                    <strong>{userLanguage}</strong> and
+                                    I&apos;ll help you translate).
+                                </p>
+                                <p className="small opacity-75 mt-2">
+                                    I&apos;ll respond in {learningLanguage},
+                                    translate your messages to {userLanguage},
+                                    and correct any mistakes you make.
+                                </p>
+                            </div>
                         </div>
                     )}
                     {messages.map((msg) => (
@@ -322,12 +476,23 @@ const LanguageLearningUI = () => {
 
                                 {/* Translation block */}
                                 {msg.role === "assistant" &&
-                                    msg.translation && (
+                                    (msg.proposal || msg.translation) && (
                                         <div className="translation-block">
                                             <strong>
                                                 📝 Translation of your message:
                                             </strong>
-                                            <p>{msg.translation}</p>
+                                            {msg.proposal && (
+                                                <p className="mb-1">
+                                                    <em>Proposal:</em>{" "}
+                                                    {msg.proposal}
+                                                </p>
+                                            )}
+                                            {msg.translation && (
+                                                <p className="mb-0 text-secondary">
+                                                    <em>Translation:</em>{" "}
+                                                    {msg.translation}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 
