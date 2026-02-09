@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ChatModule } from "./chat/chat.module";
+import { ImageProcessingModule } from "./image-processing/image-processing.module";
 
 @Module({
   imports: [
@@ -9,6 +10,7 @@ import { ChatModule } from "./chat/chat.module";
       envFilePath: ".env",
     }),
     ChatModule,
+    ImageProcessingModule,
   ],
 })
 export class AppModule {}

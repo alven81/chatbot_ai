@@ -1,0 +1,285 @@
+.image-processing {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Header ── */
+.ip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.ip-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ip-subtitle {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  margin: 0.25rem 0 0.4rem;
+}
+
+.ip-back-link {
+  color: #ffffff;
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.ip-reset-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* ── Controls bar ── */
+.ip-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  align-items: flex-end;
+}
+
+.ip-style-input {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #555;
+  }
+
+  input {
+    padding: 0.75rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &:focus {
+      border-color: #667eea;
+    }
+
+    &:disabled {
+      background: #f0f2f5;
+      cursor: not-allowed;
+    }
+  }
+
+  select.ip-select {
+    padding: 0.75rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+    background: white;
+    cursor: pointer;
+
+    &:focus {
+      border-color: #667eea;
+    }
+
+    &:disabled {
+      background: #f0f2f5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ip-process-btn {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform 0.2s,
+    opacity 0.2s;
+
+  &:hover:not(:disabled) {
+    transform: scale(1.03);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+/* ── Error ── */
+.ip-error {
+  margin: 0.75rem 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background: #fff0f0;
+  color: #c00;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+/* ── Panels ── */
+.ip-panels {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.ip-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ip-panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #333;
+}
+
+/* ── Image area ── */
+.ip-image-area {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px dashed #d0d5dd;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #fafbfc;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+button.ip-upload-zone {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #667eea;
+    background: #f0f1ff;
+    outline: none;
+  }
+}
+
+.ip-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ip-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #888;
+  text-align: center;
+  padding: 1rem;
+}
+
+.ip-upload-icon {
+  font-size: 2.5rem;
+}
+
+.ip-hint {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.ip-file-name {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #888;
+  word-break: break-all;
+}
+
+/* ── Download button ── */
+.ip-download-btn {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: scale(1.03);
+  }
+}
+
+/* ── Spinner ── */
+.ip-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e9ecef;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: ipSpin 0.8s linear infinite;
+}
+
+@keyframes ipSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .ip-panels {
+    flex-direction: column;
+  }
+
+  .ip-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+  }
+
+  .ip-controls {
+    flex-direction: column;
+  }
+}

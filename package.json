@@ -62,6 +62,7 @@
     "express": "^5.2.1",
     "langchain": "^1.2.7",
     "next": "^16.1.6",
+    "openai": "^6.18.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "reflect-metadata": "^0.2.2",
