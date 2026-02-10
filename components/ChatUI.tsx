@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import Link from "next/link";
 
 interface Message {
