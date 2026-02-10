@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import tutorImage from "@/app/assets/images/ll-girl.jpg";
+import tutorIco from "@/app/assets/images/ll-girl-ico.png";
 import "./LanguageLearning.scss";
 
 interface Message {
@@ -456,7 +457,17 @@ const LanguageLearningUI = () => {
                                 className="d-flex align-items-center justify-content-center fs-5 flex-shrink-0"
                                 style={{ width: 36, height: 36 }}
                             >
-                                {msg.role === "user" ? "👤" : "🌍"}
+                                {msg.role === "user" ? (
+                                    "👤"
+                                ) : (
+                                    <Image
+                                        src={tutorIco}
+                                        alt="Tutor Icon"
+                                        width={36}
+                                        height={36}
+                                        style={{ borderRadius: "50%" }}
+                                    />
+                                )}
                             </div>
                             <div
                                 className={`px-3 py-2 rounded-4 lh-base ${
