@@ -5,7 +5,7 @@ const Home = () => {
         <main className="d-flex flex-column align-items-center justify-content-center vh-100 bg-light">
             <h1 className="display-4 mb-5 text-dark fw-bold">AI Toolbox</h1>
 
-            <div className="d-flex gap-4">
+            <div className="d-flex flex-wrap justify-content-evenly gap-4">
                 <Link
                     href="/chat"
                     className="btn btn-primary btn-lg px-4 py-3 fw-bold shadow"
