@@ -1,6 +1,8 @@
+import { API_URL } from "./routes";
+
 export const getStatus = async () => {
     try {
-        const resp = await fetch(`http://localhost:3001/api/health`, {
+        const resp = await fetch(`${API_URL}/health`, {
             cache: "no-store",
         });
         const data = await resp.json();
@@ -26,14 +28,11 @@ export const processImage = async (
     request: ImageProcessingRequest
 ): Promise<{ resultBase64: string }> => {
     try {
-        const response = await fetch(
-            "http://localhost:3001/api/image-processing/process",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(request),
-            }
-        );
+        const response = await fetch(`${API_URL}/image-processing/process`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+        });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => null);
