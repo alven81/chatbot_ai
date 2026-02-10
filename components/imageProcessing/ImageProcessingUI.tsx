@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import { useState, useRef, useEffect, DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { processImage as processImageRequest } from "../../services/request";
 import "./ImageProcessing.scss";
@@ -20,7 +20,7 @@ const ImageProcessingUI = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const styleInputRef = useRef<HTMLInputElement>(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
         styleInputRef.current?.focus();
     }, []);
 
@@ -47,19 +47,19 @@ const ImageProcessingUI = () => {
         reader.readAsDataURL(file);
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) handleFileSelect(file);
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = (e: DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         const file = e.dataTransfer.files[0];
         if (file) handleFileSelect(file);
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
+    const handleDragOver = (e: DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
     };
