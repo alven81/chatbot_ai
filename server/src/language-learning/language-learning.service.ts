@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ChatOpenAI } from "@langchain/openai";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage, AIMessage, HumanMessage } from "@langchain/core/messages";
@@ -7,6 +8,10 @@ import {
     MessagesPlaceholder,
 } from "@langchain/core/prompts";
 import { Observable } from "rxjs";
+import {
+    LlmProviderService,
+    LlmInfo,
+} from "../shared/llm-provider/llm-provider.service";
 
 @Injectable()
 export class LanguageLearningService implements OnModuleInit {
@@ -14,28 +19,33 @@ export class LanguageLearningService implements OnModuleInit {
     private readonly chatHistories: Map<string, BaseMessage[]> = new Map();
     private llm!: ChatOpenAI;
     private analysisLlm!: ChatOpenAI;
+    private llmInfo!: LlmInfo;
     private readonly outputParser = new StringOutputParser();
+
+    constructor(
+        private readonly configService: ConfigService,
+        @Inject(LlmProviderService)
+        private readonly llmProviderService: LlmProviderService
+    ) {}
 
     onModuleInit() {
         this.initializeLLM();
     }
 
     private initializeLLM() {
-        // Use GPT-4o for language tutoring — best for nuanced grammar,
-        // translations, and natural conversation across languages.
-        this.llm = new ChatOpenAI({
-            model: "gpt-4o",
-            temperature: 0.7,
-        });
+        const tutor = this.llmProviderService.createLanguageTutorLlm();
+        this.llm = tutor.model as ChatOpenAI;
+        this.llmInfo = tutor.info;
 
-        // A separate fast model instance for analyzing user messages
-        // (translation + corrections) so the main response isn't blocked.
-        this.analysisLlm = new ChatOpenAI({
-            model: "gpt-4o-mini",
-            temperature: 0.2,
-        });
+        const analysis = this.llmProviderService.createLanguageAnalysisLlm();
+        this.analysisLlm = analysis.model as ChatOpenAI;
+    }
 
-        this.logger.log("Initialized Language Learning LLM: GPT-4o");
+    getHealth() {
+        return {
+            ...this.llmInfo,
+            availableModels: this.llmProviderService.getAvailableModels(),
+        };
     }
 
     /**
@@ -45,8 +55,29 @@ export class LanguageLearningService implements OnModuleInit {
     async analyzeUserMessage(
         message: string,
         learningLanguage: string,
-        userLanguage: string
+        userLanguage: string,
+        modelId?: string
     ): Promise<{ translation: string; corrections: string; proposal: string }> {
+        this.logger.log(`Analyzing user message for ${learningLanguage}`);
+        //         const prompt = ChatPromptTemplate.fromMessages([
+        //             [
+        //                 "system",
+        //                 `You are a language analysis assistant. The user is learning ${learningLanguage} and speaks ${userLanguage}.
+        // Analyze the user's input and provide feedback in JSON format.
+        // Your output must be a valid JSON object with these EXACT keys:
+        // {{
+        //   "proposal": "The corrected version of user's message in ${learningLanguage}",
+        //   "translation": "Translation of proposal into ${userLanguage}",
+        //   "corrections": "Explanation of mistakes or improvements in ${userLanguage}"
+        // }}
+        // IMPORTANT: DO NOT engage in conversation. DO NOT answer questions. ONLY return the JSON object.`,
+        //             ],
+        //             [
+        //                 "human",
+        //                 `Analyze the following message from a learner of ${learningLanguage}:\n\n{message}\n\nReturn strictly valid JSON only.`,
+        //             ],
+        //         ]);
+
         const prompt = ChatPromptTemplate.fromMessages([
             [
                 "system",
@@ -61,18 +92,34 @@ Return ONLY valid JSON, no markdown fences.`,
             ["human", "{message}"],
         ]);
 
-        const chain = prompt.pipe(this.analysisLlm).pipe(this.outputParser);
+        const { model } =
+            this.llmProviderService.createLanguageAnalysisLlm(modelId);
+        const chain = prompt.pipe(model).pipe(this.outputParser);
 
         try {
             const raw = await chain.invoke({ message });
-            const parsed = JSON.parse(raw);
+
+            // Поиск начала и конца JSON объекта
+            const startToken = raw.indexOf("{");
+            const endToken = raw.lastIndexOf("}");
+
+            if (startToken === -1 || endToken === -1) {
+                this.logger.warn(`No JSON found in analysis response: ${raw}`);
+                throw new Error("No JSON object found in response");
+            }
+
+            const cleaned = raw.substring(startToken, endToken + 1);
+            const parsed = JSON.parse(cleaned);
+            this.logger.log(`Analysis complete for ${learningLanguage}`);
             return {
                 proposal: parsed.proposal || "",
                 translation: parsed.translation || "",
                 corrections: parsed.corrections || "",
             };
-        } catch (err) {
-            this.logger.warn("Failed to parse analysis response", err);
+        } catch (err: any) {
+            this.logger.warn(
+                `Failed to parse analysis response: ${err.message}`
+            );
             return { proposal: "", translation: "", corrections: "" };
         }
     }
@@ -87,15 +134,20 @@ Return ONLY valid JSON, no markdown fences.`,
         learningLanguage: string = "Spanish",
         userLanguage: string = "English",
         learningLevel: string = "A1",
-        userProfession: string = "General"
+        userProfession: string = "General",
+        modelId?: string
     ): Observable<any> {
+        this.logger.log(
+            `Starting language tutor stream for session: ${sessionId}`
+        );
         return new Observable((subscriber) => {
             const history = this.getHistory(sessionId);
             const chain = this.getTutorChain(
                 learningLanguage,
                 userLanguage,
                 learningLevel,
-                userProfession
+                userProfession,
+                modelId
             );
 
             (async () => {
@@ -104,7 +156,8 @@ Return ONLY valid JSON, no markdown fences.`,
                     const analysisPromise = this.analyzeUserMessage(
                         message,
                         learningLanguage,
-                        userLanguage
+                        userLanguage,
+                        modelId
                     );
 
                     // Stream the tutor response
@@ -119,8 +172,10 @@ Return ONLY valid JSON, no markdown fences.`,
                         subscriber.next({ data: { chunk } });
                     }
 
-                    history.push(new HumanMessage(message));
-                    history.push(new AIMessage(fullResponse));
+                    history.push(
+                        new HumanMessage(message),
+                        new AIMessage(fullResponse)
+                    );
 
                     // Send analysis results
                     const analysis = await analysisPromise;
@@ -140,10 +195,16 @@ Return ONLY valid JSON, no markdown fences.`,
                         });
                     }
 
+                    this.logger.log(
+                        `Language tutor stream completed for session: ${sessionId}`
+                    );
                     subscriber.next({ data: { done: true } });
                     subscriber.complete();
-                } catch (error) {
-                    this.logger.error("Streaming error", error);
+                } catch (error: any) {
+                    this.logger.error(
+                        `Language tutor streaming error for session ${sessionId}: ${error.message}`,
+                        error.stack
+                    );
                     subscriber.error(error);
                 }
             })();
@@ -151,6 +212,7 @@ Return ONLY valid JSON, no markdown fences.`,
     }
 
     clearHistory(sessionId: string = "default") {
+        this.logger.log(`Clearing language history for session: ${sessionId}`);
         this.chatHistories.delete(sessionId);
         return {
             success: true,
@@ -169,7 +231,8 @@ Return ONLY valid JSON, no markdown fences.`,
         learningLanguage: string,
         userLanguage: string,
         learningLevel: string,
-        userProfession: string
+        userProfession: string,
+        modelId?: string
     ) {
         const prompt = ChatPromptTemplate.fromMessages([
             [
@@ -196,6 +259,8 @@ Your behavior:
             ["human", "{question}"],
         ]);
 
-        return prompt.pipe(this.llm).pipe(this.outputParser);
+        const { model } =
+            this.llmProviderService.createLanguageTutorLlm(modelId);
+        return prompt.pipe(model).pipe(this.outputParser);
     }
 }

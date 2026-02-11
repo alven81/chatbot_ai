@@ -79,4 +79,13 @@ export class ImageProcessingRequest {
     @IsNumber()
     @IsOptional()
     seed?: number;
+
+    @ApiProperty({
+        type: String,
+        description: "Optional model ID",
+        required: false,
+    })
+    @IsString()
+    @IsOptional()
+    modelId?: string;
 }

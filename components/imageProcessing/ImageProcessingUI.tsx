@@ -2,7 +2,11 @@
 
 import { useState, useRef, useEffect, DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
-import { processImage as processImageRequest } from "../../services/request";
+import {
+    processImage as processImageRequest,
+    getImageHealth,
+    HealthStatus,
+} from "../../services/request";
 import "./ImageProcessing.scss";
 
 const ImageProcessingUI = () => {
@@ -13,6 +17,11 @@ const ImageProcessingUI = () => {
     const [style, setStyle] = useState("photorealistic");
     const [lighting, setLighting] = useState("cinematic");
     const [quality, setQuality] = useState("high");
+    const [status, setStatus] = useState<HealthStatus>({
+        platform: "Loading...",
+        llm: "...",
+    });
+    const [selectedModel, setSelectedModel] = useState<string>("");
     const [isSettingsOpen, setIsSettingsOpen] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -22,7 +31,27 @@ const ImageProcessingUI = () => {
 
     useEffect(() => {
         styleInputRef.current?.focus();
+        getImageHealth().then(setStatus);
     }, []);
+
+    // Load/Save selected model
+    useEffect(() => {
+        const saved = localStorage.getItem("image_model_id");
+        if (saved) {
+            setSelectedModel(saved);
+        } else if (
+            status.availableModels &&
+            status.availableModels.length > 0
+        ) {
+            setSelectedModel(status.availableModels[0].id);
+        }
+    }, [status]);
+
+    const handleModelChange = (e: ChangeEvent<HTMLSelectElement>) => {
+        const modelId = e.target.value;
+        setSelectedModel(modelId);
+        localStorage.setItem("image_model_id", modelId);
+    };
 
     const handleFileSelect = (file: File) => {
         if (!file.type.startsWith("image/")) {
@@ -82,6 +111,7 @@ const ImageProcessingUI = () => {
                 style,
                 lighting,
                 quality,
+                modelId: selectedModel,
             });
 
             setProcessedImage(`data:image/png;base64,${data.resultBase64}`);
@@ -149,10 +179,27 @@ const ImageProcessingUI = () => {
                     <h1 className="h5 fw-semibold mb-0">
                         🖼️ AI Image Processing
                     </h1>
-                    <p className="small opacity-75 mt-1 mb-1">
-                        Remove background &amp; change clothing style using
-                        OpenAI gpt-image-1
-                    </p>
+                    {status.availableModels &&
+                    status.availableModels.length > 0 ? (
+                        <select
+                            className="form-select form-select-sm mt-1"
+                            style={{ maxWidth: "200px", cursor: "pointer" }}
+                            value={selectedModel}
+                            onChange={handleModelChange}
+                        >
+                            {status.availableModels
+                                .filter((model) => model.isImageCapable)
+                                .map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name}
+                                    </option>
+                                ))}
+                        </select>
+                    ) : (
+                        <p className="small opacity-75 mt-1 mb-1">
+                            Running on: {status.platform} ({status.llm})
+                        </p>
+                    )}
                     <Link
                         href="/"
                         className="text-white text-decoration-underline small"

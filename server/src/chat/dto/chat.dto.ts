@@ -17,6 +17,14 @@ export class ChatRequest {
     })
     @IsString()
     sessionId?: string;
+
+    @ApiProperty({
+        type: String,
+        description: "Optional model ID",
+        required: false,
+    })
+    @IsString()
+    modelId?: string;
 }
 
 export class ClearRequest {

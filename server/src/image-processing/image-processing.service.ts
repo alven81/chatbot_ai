@@ -1,19 +1,45 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Injectable, Logger, Inject, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import OpenAI, { toFile } from "openai";
 import { AspectRatio, LightingStyle } from "./dto/image-processing.dto";
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage } from "@langchain/core/messages";
+import sharp from "sharp";
+import {
+    LlmProviderService,
+    LlmInfo,
+} from "../shared/llm-provider/llm-provider.service";
 
 @Injectable()
-export class ImageProcessingService {
+export class ImageProcessingService implements OnModuleInit {
     private readonly logger = new Logger(ImageProcessingService.name);
-    private readonly openai: OpenAI;
+    private openai: OpenAI | null = null;
+    private llm: ChatOpenAI | null = null;
+    private llmInfo!: LlmInfo;
 
     constructor(
-        @Inject(ConfigService) private readonly configService: ConfigService
-    ) {
-        this.openai = new OpenAI({
-            apiKey: this.configService.get("OPENAI_API_KEY"),
-        });
+        private readonly configService: ConfigService,
+        @Inject(LlmProviderService)
+        private readonly llmProviderService: LlmProviderService
+    ) {}
+
+    onModuleInit() {
+        this.initializeProvider();
+    }
+
+    private initializeProvider() {
+        const { openai, llm, info } =
+            this.llmProviderService.createImageProcessingProvider();
+        this.openai = openai || null;
+        this.llm = llm || null;
+        this.llmInfo = info;
+    }
+
+    getHealth() {
+        return {
+            ...this.llmInfo,
+            availableModels: this.llmProviderService.getAvailableModels(),
+        };
     }
 
     private mapAspectRatioToSize(
@@ -31,8 +57,24 @@ export class ImageProcessingService {
         style: string = "photorealistic",
         lighting: LightingStyle = LightingStyle.CINEMATIC,
         quality: string = "high",
-        seed?: number
+        seed?: number,
+        modelId?: string
     ): Promise<{ resultBase64: string }> {
+        // Dynamic provider creation
+        let provider: { openai?: OpenAI | null; llm?: ChatOpenAI | null } = {
+            openai: this.openai,
+            llm: this.llm,
+        };
+        if (modelId) {
+            const p =
+                this.llmProviderService.createImageProcessingProvider(modelId);
+            provider = { openai: p.openai, llm: p.llm };
+        }
+
+        if (provider.llm) {
+            return this.processWithOllama(imageBase64, styleDescription);
+        }
+
         this.logger.log(
             `Processing image | Style: "${styleDescription}" | Aspect: ${aspectRatio} | Lighting: ${lighting}`
         );
@@ -58,7 +100,10 @@ export class ImageProcessingService {
                 type: "image/png",
             });
 
-            const response = await this.openai.images.edit({
+            const openai = provider.openai || this.openai;
+            if (!openai) throw new Error("No OpenAI provider available");
+
+            const response = await openai.images.edit({
                 model: "gpt-image-1",
                 image: imageFile,
                 prompt,
@@ -77,6 +122,95 @@ export class ImageProcessingService {
         } catch (error: any) {
             this.logger.error(`Image processing failed: ${error.message}`);
             throw error;
+        }
+    }
+
+    private async processWithOllama(
+        imageBase64: string,
+        styleDescription: string
+    ): Promise<{ resultBase64: string }> {
+        this.logger.log("Analyzing image with Ollama (LLaVA)...");
+        try {
+            // 1. Оптимизация изображения через Sharp
+            const inputBuffer = Buffer.from(imageBase64, "base64");
+            // Изменяем размер для ускорения обработки и приводим к PNG
+            const resizedBuffer = await sharp(inputBuffer)
+                .resize(600, 600, {
+                    fit: "inside",
+                    withoutEnlargement: true,
+                })
+                .toFormat("png")
+                .toBuffer();
+
+            const base64ForLlm = resizedBuffer.toString("base64");
+
+            // 2. Отправка в LLaVA
+            const response = await this.llm!.invoke([
+                new HumanMessage({
+                    content: [
+                        {
+                            type: "text",
+                            text: `Briefly describe this image and explain how it would look IF the clothing was changed to: ${styleDescription}. Start with "Analysis: ..."`,
+                        },
+                        {
+                            type: "image_url",
+                            image_url: `data:image/png;base64,${base64ForLlm}`,
+                        },
+                    ],
+                }),
+            ]);
+
+            const analysisText = response.content.toString();
+            this.logger.log(
+                `LLaVA Analysis: ${analysisText.substring(0, 100)}...`
+            );
+
+            // 3. Наложение текста на изображение (так как LLaVA не генерирует картинки)
+            const metadata = await sharp(resizedBuffer).metadata();
+            const width = metadata.width || 600;
+            const height = metadata.height || 600;
+
+            // Простая SVG подложка с текстом
+            // Разбиваем текст на строки примерно по 50 символов
+            const words = analysisText.split(" ");
+            let lines: string[] = [];
+            let currentLine = "";
+
+            words.forEach((word) => {
+                if ((currentLine + word).length > 60) {
+                    lines.push(currentLine);
+                    currentLine = word + " ";
+                } else {
+                    currentLine += word + " ";
+                }
+            });
+            lines.push(currentLine);
+            lines = lines.slice(0, 6); // Берем только первые 6 строк чтобы влезло
+
+            const lineHeight = 20;
+            const boxHeight = lines.length * lineHeight + 20;
+
+            const svgText = `
+            <svg width="${width}" height="${height}">
+                <rect x="0" y="${height - boxHeight}" width="${width}" height="${boxHeight}" fill="rgba(0,0,0,0.7)" />
+                ${lines
+                    .map(
+                        (line, i) =>
+                            `<text x="10" y="${height - boxHeight + 20 + i * lineHeight}" font-family="Arial" font-size="14" fill="white">${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>`
+                    )
+                    .join("")}
+            </svg>
+            `;
+
+            const finalImage = await sharp(resizedBuffer)
+                .composite([{ input: Buffer.from(svgText), gravity: "south" }])
+                .toBuffer();
+
+            return { resultBase64: finalImage.toString("base64") };
+        } catch (error) {
+            this.logger.error("Ollama processing failed", error);
+            // В случае ошибки возвращаем исходное изображение (без обработки)
+            return { resultBase64: imageBase64 };
         }
     }
 }

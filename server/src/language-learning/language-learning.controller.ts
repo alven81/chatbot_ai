@@ -1,10 +1,12 @@
 import {
     Controller,
     Post,
+    Get,
     Body,
     Res,
     HttpStatus,
     Inject,
+    Logger,
 } from "@nestjs/common";
 import { LanguageLearningService } from "./language-learning.service";
 import type { Response } from "express";
@@ -15,8 +17,9 @@ import {
 } from "./dto/language-learning.dto";
 
 @ApiTags("Language Learning")
-@Controller("api/language-learning")
+@Controller("language-learning")
 export class LanguageLearningController {
+    private readonly logger = new Logger(LanguageLearningController.name);
     constructor(
         @Inject(LanguageLearningService)
         private readonly languageLearningService: LanguageLearningService
@@ -36,8 +39,8 @@ export class LanguageLearningController {
         @Body() body: LanguageLearningRequest,
         @Res() res: Response
     ) {
-        console.log(
-            `[LanguageLearning] Starting stream for: ${body.message} (${body.learningLanguage})`
+        this.logger.log(
+            `Starting stream for: ${body.message} (Lang: ${body.learningLanguage}, Session: ${body.sessionId})`
         );
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -51,7 +54,8 @@ export class LanguageLearningController {
             body.learningLanguage,
             body.userLanguage,
             body.learningLevel,
-            body.userProfession
+            body.userProfession,
+            body.modelId
         );
 
         const subscription = stream$.subscribe({
@@ -59,8 +63,8 @@ export class LanguageLearningController {
                 res.write(`data: ${JSON.stringify(val.data)}\n\n`);
             },
             error: (err) => {
-                console.error(
-                    `[LanguageLearning] Stream error: ${err.message}`
+                this.logger.error(
+                    `Stream error for session ${body.sessionId}: ${err.message}`
                 );
                 res.write(
                     `data: ${JSON.stringify({ error: err.message })}\n\n`
@@ -68,13 +72,17 @@ export class LanguageLearningController {
                 res.end();
             },
             complete: () => {
-                console.log(`[LanguageLearning] Stream complete`);
+                this.logger.log(
+                    `Stream complete for session ${body.sessionId}`
+                );
                 res.end();
             },
         });
 
         res.on("close", () => {
-            console.log("[LanguageLearning] Client closed connection");
+            this.logger.log(
+                `Client closed connection for session ${body.sessionId}`
+            );
             subscription.unsubscribe();
         });
     }
@@ -85,5 +93,12 @@ export class LanguageLearningController {
     @ApiResponse({ status: 200, description: "History cleared successfully" })
     clearChat(@Body() body: LanguageLearningClearRequest) {
         return this.languageLearningService.clearHistory(body.sessionId);
+    }
+
+    @Get("health")
+    @ApiOperation({ summary: "Get API health and active LLM provider" })
+    @ApiResponse({ status: 200, description: "Health status" })
+    health() {
+        return this.languageLearningService.getHealth();
     }
 }

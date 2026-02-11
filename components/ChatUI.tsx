@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
 import Link from "next/link";
+import { getChatHealth, HealthStatus } from "@/services/request";
+import { API_URL } from "@/services/routes";
 
 interface Message {
     id: string;
@@ -14,15 +16,18 @@ interface ChatUIProps {
     initialStatus: any;
 }
 
-const API_URL = "http://localhost:3001";
-
 const ChatUI = ({ initialStatus }: ChatUIProps) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [status, setStatus] = useState<HealthStatus>(
+        initialStatus || { platform: "Unknown", llm: "Unknown" }
+    );
     const [useStreaming, setUseStreaming] = useState(true);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [sessionId] = useState(() => `session-${Date.now()}`);
+    const [selectedModel, setSelectedModel] = useState<string>("");
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -36,7 +41,30 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
 
     useEffect(() => {
         inputRef.current?.focus();
-    }, []);
+        if (!initialStatus || initialStatus.platform === "Unknown") {
+            getChatHealth().then(setStatus);
+        }
+    }, [initialStatus]);
+
+    // Load/Save selected model
+    useEffect(() => {
+        const saved = localStorage.getItem("chat_model_id");
+        if (saved) {
+            setSelectedModel(saved);
+        } else if (
+            status.availableModels &&
+            status.availableModels.length > 0
+        ) {
+            setSelectedModel(status.availableModels[0].id);
+        }
+    }, [status]);
+
+    const handleModelChange = async (e: ChangeEvent<HTMLSelectElement>) => {
+        await clearChat();
+        const modelId = e.target.value;
+        setSelectedModel(modelId);
+        localStorage.setItem("chat_model_id", modelId);
+    };
 
     const sendMessage = async () => {
         if (!input.trim() || isLoading) return;
@@ -53,6 +81,8 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
 
         const assistantMessageId = `msg-${Date.now()}-assistant`;
 
+        const modelPayload = selectedModel ? { modelId: selectedModel } : {};
+
         if (useStreaming) {
             setMessages((prev) => [
                 ...prev,
@@ -65,12 +95,13 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
             ]);
 
             try {
-                const response = await fetch(`${API_URL}/api/chat/stream`, {
+                const response = await fetch(`${API_URL}/chat/stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         message: userMessage.content,
                         sessionId,
+                        ...modelPayload,
                     }),
                 });
 
@@ -136,12 +167,13 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
             }
         } else {
             try {
-                const response = await fetch(`${API_URL}/api/chat/history`, {
+                const response = await fetch(`${API_URL}/chat/history`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         message: userMessage.content,
                         sessionId,
+                        ...modelPayload,
                     }),
                 });
 
@@ -175,7 +207,7 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
 
     const clearChat = async () => {
         try {
-            await fetch(`${API_URL}/api/chat/clear`, {
+            await fetch(`${API_URL}/chat/clear`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sessionId }),
@@ -198,9 +230,27 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
             <header className="app-header-gradient d-flex justify-content-between align-items-center p-3 text-white">
                 <div>
                     <h1 className="h5 fw-semibold mb-0">🤖 AI Chatbot</h1>
-                    <p className="small opacity-75 mb-1">
-                        Running on: {initialStatus.llm}
-                    </p>
+                    {status.availableModels &&
+                    status.availableModels.length > 0 ? (
+                        <select
+                            className="form-select form-select-sm mt-1"
+                            style={{ maxWidth: "200px", cursor: "pointer" }}
+                            value={selectedModel}
+                            onChange={handleModelChange}
+                        >
+                            {status.availableModels
+                                .filter((model) => !model.isImageOnly)
+                                .map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name}
+                                    </option>
+                                ))}
+                        </select>
+                    ) : (
+                        <p className="small opacity-75 mb-1">
+                            Running on: {status.platform} ({status.llm})
+                        </p>
+                    )}
                     <Link
                         href="/"
                         className="text-white text-decoration-underline small"

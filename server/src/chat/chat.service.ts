@@ -1,7 +1,5 @@
 import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage, AIMessage, HumanMessage } from "@langchain/core/messages";
 import {
@@ -9,69 +7,68 @@ import {
     MessagesPlaceholder,
 } from "@langchain/core/prompts";
 import { Observable } from "rxjs";
+import {
+    LlmProviderService,
+    LlmInfo,
+} from "../shared/llm-provider/llm-provider.service";
 
 @Injectable()
 export class ChatService implements OnModuleInit {
     private readonly logger = new Logger(ChatService.name);
     private readonly chatHistories: Map<string, BaseMessage[]> = new Map();
     private llm: any;
+    private llmInfo!: LlmInfo;
     private readonly outputParser = new StringOutputParser();
 
-    constructor(@Inject(ConfigService) private configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        @Inject(LlmProviderService)
+        private readonly llmProviderService: LlmProviderService
+    ) {}
 
     onModuleInit() {
         this.initializeLLM();
     }
 
     private initializeLLM() {
-        const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        const useGoogle = this.configService.get("USE_GOOGLE_LLM") === "true";
-
-        if (useOllama) {
-            this.llm = new ChatOpenAI({
-                model: "llama2",
-                apiKey: "ollama",
-                configuration: {
-                    baseURL: "http://localhost:11434/v1",
-                },
-            });
-        } else if (useGoogle) {
-            this.llm = new ChatGoogleGenerativeAI({
-                model: "gemini-2.5-flash",
-            });
-        } else {
-            this.llm = new ChatOpenAI({
-                model: "gpt-4o-mini",
-            });
-        }
-
-        this.logger.log(
-            `Initialized LLM: ${useOllama ? "Ollama" : useGoogle ? "Google" : "OpenAI"}`
-        );
+        const { model, info } = this.llmProviderService.createChatLlm();
+        this.llm = model;
+        this.llmInfo = info;
     }
 
-    async getChatResponse(message: string, sessionId: string = "default") {
+    async getChatResponse(
+        message: string,
+        sessionId: string = "default",
+        modelId?: string
+    ) {
+        this.logger.log(
+            `Generating chat response for session: ${sessionId} with model: ${modelId || "default"}`
+        );
         const history = this.getHistory(sessionId);
-        const chain = this.getChain();
+        const chain = this.getChain(modelId);
 
         const response = await chain.invoke({
             question: message,
             chat_history: history,
         });
 
-        history.push(new HumanMessage(message));
-        history.push(new AIMessage(response));
+        history.push(new HumanMessage(message), new AIMessage(response));
 
+        this.logger.log(`Chat response generated for session: ${sessionId}`);
         return { response, sessionId };
     }
 
     streamChatResponse(
         message: string,
-        sessionId: string = "default"
+        sessionId: string = "default",
+        modelId?: string
     ): Observable<any> {
+        this.logger.log(
+            `Starting chat stream for session: ${sessionId} with model: ${modelId || "default"}`
+        );
         return new Observable((subscriber) => {
             const history = this.getHistory(sessionId);
-            const chain = this.getChain();
+            const chain = this.getChain(modelId);
 
             (async () => {
                 try {
@@ -89,10 +86,16 @@ export class ChatService implements OnModuleInit {
                     history.push(new HumanMessage(message));
                     history.push(new AIMessage(fullResponse));
 
+                    this.logger.log(
+                        `Chat stream completed for session: ${sessionId}`
+                    );
                     subscriber.next({ data: { done: true } });
                     subscriber.complete();
-                } catch (error) {
-                    this.logger.error("Streaming error", error);
+                } catch (error: any) {
+                    this.logger.error(
+                        `Streaming error for session ${sessionId}: ${error.message}`,
+                        error.stack
+                    );
                     subscriber.error(error);
                 }
             })();
@@ -100,19 +103,15 @@ export class ChatService implements OnModuleInit {
     }
 
     clearHistory(sessionId: string = "default") {
+        this.logger.log(`Clearing chat history for session: ${sessionId}`);
         this.chatHistories.delete(sessionId);
         return { success: true, message: "Chat history cleared" };
     }
 
     getHealth() {
         return {
-            status: "ok",
-            activeProvider:
-                this.configService.get("USE_OLLAMA") === "true"
-                    ? "Ollama"
-                    : this.configService.get("USE_GOOGLE_LLM") === "true"
-                      ? "Google"
-                      : "OpenAI",
+            ...this.llmInfo,
+            availableModels: this.llmProviderService.getAvailableModels(),
         };
     }
 
@@ -123,7 +122,9 @@ export class ChatService implements OnModuleInit {
         return this.chatHistories.get(sessionId)!;
     }
 
-    private getChain() {
+    private getChain(modelId?: string) {
+        const { model } = this.llmProviderService.createChatLlm(modelId);
+
         const prompt = ChatPromptTemplate.fromMessages([
             [
                 "system",
@@ -133,6 +134,6 @@ export class ChatService implements OnModuleInit {
             ["human", "{question}"],
         ]);
 
-        return prompt.pipe(this.llm).pipe(this.outputParser);
+        return prompt.pipe(model).pipe(this.outputParser);
     }
 }

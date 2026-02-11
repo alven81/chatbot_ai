@@ -54,6 +54,15 @@ export class LanguageLearningRequest {
     @IsOptional()
     @IsString()
     userProfession?: string;
+
+    @ApiProperty({
+        type: String,
+        description: "Optional model ID",
+        required: false,
+    })
+    @IsString()
+    @IsOptional()
+    modelId?: string;
 }
 
 export class LanguageLearningClearRequest {
@@ -65,4 +74,13 @@ export class LanguageLearningClearRequest {
     @IsOptional()
     @IsString()
     sessionId?: string;
+
+    @ApiProperty({
+        type: String,
+        description: "Optional model ID",
+        required: false,
+    })
+    @IsString()
+    @IsOptional()
+    modelId?: string;
 }

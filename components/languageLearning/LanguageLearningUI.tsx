@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { getLanguageHealth, HealthStatus } from "@/services/request";
 import tutorImage from "@/app/assets/images/ll-girl.jpg";
 import tutorIco from "@/app/assets/images/ll-girl-ico.png";
 import "./LanguageLearning.scss";
+import { API_URL } from "@/services/routes";
 
 interface Message {
     id: string;
@@ -16,8 +18,6 @@ interface Message {
     corrections?: string;
     isStreaming?: boolean;
 }
-
-const API_URL = "http://localhost:3001";
 
 const LANGUAGES = [
     "Polish",
@@ -70,6 +70,11 @@ const LanguageLearningUI = () => {
     const [userLanguage, setUserLanguage] = useState("Belorussian");
     const [learningLevel, setLearningLevel] = useState("A1");
     const [userProfession, setUserProfession] = useState("General");
+    const [status, setStatus] = useState<HealthStatus>({
+        platform: "Loading...",
+        llm: "...",
+    });
+    const [selectedModel, setSelectedModel] = useState<string>("");
     const [isSettingsOpen, setIsSettingsOpen] = useState(true);
     const [sessionId] = useState(() => `lang-session-${Date.now()}`);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,7 +90,27 @@ const LanguageLearningUI = () => {
 
     useEffect(() => {
         inputRef.current?.focus();
+        getLanguageHealth().then(setStatus);
     }, []);
+
+    // Load/Save selected model
+    useEffect(() => {
+        const saved = localStorage.getItem("lang_model_id");
+        if (saved) {
+            setSelectedModel(saved);
+        } else if (
+            status.availableModels &&
+            status.availableModels.length > 0
+        ) {
+            setSelectedModel(status.availableModels[0].id);
+        }
+    }, [status]);
+
+    const handleModelChange = (e: ChangeEvent<HTMLSelectElement>) => {
+        const modelId = e.target.value;
+        setSelectedModel(modelId);
+        localStorage.setItem("lang_model_id", modelId);
+    };
 
     const sendMessage = async () => {
         if (!input.trim() || isLoading) return;
@@ -115,7 +140,7 @@ const LanguageLearningUI = () => {
 
         try {
             const response = await fetch(
-                `${API_URL}/api/language-learning/stream`,
+                `${API_URL}/language-learning/stream`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -126,6 +151,7 @@ const LanguageLearningUI = () => {
                         userLanguage,
                         learningLevel,
                         userProfession,
+                        modelId: selectedModel,
                     }),
                 }
             );
@@ -234,7 +260,7 @@ const LanguageLearningUI = () => {
 
     const clearChat = async () => {
         try {
-            await fetch(`${API_URL}/api/language-learning/clear`, {
+            await fetch(`${API_URL}/language-learning/clear`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sessionId }),
@@ -260,10 +286,27 @@ const LanguageLearningUI = () => {
                         <h1 className="h5 fw-semibold mb-0">
                             🌍 AI Language Learning
                         </h1>
-                        <p className="small opacity-75 mb-1">
-                            Powered by GPT-4o &middot; Your personal language
-                            tutor
-                        </p>
+                        {status.availableModels &&
+                        status.availableModels.length > 0 ? (
+                            <select
+                                className="form-select form-select-sm mt-1"
+                                style={{ maxWidth: "200px", cursor: "pointer" }}
+                                value={selectedModel}
+                                onChange={handleModelChange}
+                            >
+                                {status.availableModels
+                                    .filter((model) => !model.isImageOnly)
+                                    .map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name}
+                                        </option>
+                                    ))}
+                            </select>
+                        ) : (
+                            <p className="small opacity-75 mb-1">
+                                Running on: {status.platform} ({status.llm})
+                            </p>
+                        )}
                         <Link
                             href="/"
                             className="text-white text-decoration-underline small"
