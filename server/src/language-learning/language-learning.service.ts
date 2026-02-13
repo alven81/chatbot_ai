@@ -9,8 +9,8 @@ import {
 } from "@langchain/core/prompts";
 import { Observable } from "rxjs";
 import {
-    LlmProviderService,
     LlmInfo,
+    LlmProviderService,
 } from "../shared/llm-provider/llm-provider.service";
 
 @Injectable()
@@ -59,24 +59,6 @@ export class LanguageLearningService implements OnModuleInit {
         modelId?: string
     ): Promise<{ translation: string; corrections: string; proposal: string }> {
         this.logger.log(`Analyzing user message for ${learningLanguage}`);
-        //         const prompt = ChatPromptTemplate.fromMessages([
-        //             [
-        //                 "system",
-        //                 `You are a language analysis assistant. The user is learning ${learningLanguage} and speaks ${userLanguage}.
-        // Analyze the user's input and provide feedback in JSON format.
-        // Your output must be a valid JSON object with these EXACT keys:
-        // {{
-        //   "proposal": "The corrected version of user's message in ${learningLanguage}",
-        //   "translation": "Translation of proposal into ${userLanguage}",
-        //   "corrections": "Explanation of mistakes or improvements in ${userLanguage}"
-        // }}
-        // IMPORTANT: DO NOT engage in conversation. DO NOT answer questions. ONLY return the JSON object.`,
-        //             ],
-        //             [
-        //                 "human",
-        //                 `Analyze the following message from a learner of ${learningLanguage}:\n\n{message}\n\nReturn strictly valid JSON only.`,
-        //             ],
-        //         ]);
 
         const prompt = ChatPromptTemplate.fromMessages([
             [

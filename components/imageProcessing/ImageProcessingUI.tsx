@@ -188,7 +188,10 @@ const ImageProcessingUI = () => {
                             onChange={handleModelChange}
                         >
                             {status.availableModels
-                                .filter((model) => model.isImageCapable)
+                                .filter(
+                                    (model) =>
+                                        model.isImageCapable && !model.isOcrOnly
+                                )
                                 .map((m) => (
                                     <option key={m.id} value={m.id}>
                                         {m.name}

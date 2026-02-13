@@ -6,6 +6,7 @@ export interface ILlmModel {
     provider: string;
     isImageCapable?: boolean;
     isImageOnly?: boolean;
+    isOcrOnly?: boolean;
 }
 
 export interface HealthStatus {
@@ -74,6 +75,36 @@ export interface ImageProcessingRequest {
     quality?: string;
     modelId?: string;
 }
+
+export interface TextRecognitionRequest {
+    imageBase64: string;
+    language?: string;
+    modelId?: string;
+}
+
+export const recognizeText = async (
+    request: TextRecognitionRequest
+): Promise<{ text: string }> => {
+    try {
+        const response = await fetch(`${API_URL}/text-recognition/recognize`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(
+                errorData?.message || `Recognition failed (${response.status})`
+            );
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error: any) {
+        throw new Error(error.message || "Failed to recognize text");
+    }
+};
 
 export const processImage = async (
     request: ImageProcessingRequest

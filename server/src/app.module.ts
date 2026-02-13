@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ChatModule } from "./chat/chat.module";
 import { ImageProcessingModule } from "./image-processing/image-processing.module";
 import { LanguageLearningModule } from "./language-learning/language-learning.module";
+import { TextRecognitionModule } from "./text-recognition/text-recognition.module";
 import { LlmProviderModule } from "./shared/llm-provider/llm-provider.module";
 
 @Module({
@@ -15,6 +16,7 @@ import { LlmProviderModule } from "./shared/llm-provider/llm-provider.module";
         ChatModule,
         ImageProcessingModule,
         LanguageLearningModule,
+        TextRecognitionModule,
     ],
 })
 export class AppModule {}

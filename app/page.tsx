@@ -26,6 +26,13 @@ const Home = () => {
                 >
                     AI Language Learning
                 </Link>
+
+                <Link
+                    href="/text-recognition"
+                    className="btn btn-info btn-lg px-4 py-3 fw-bold text-white shadow"
+                >
+                    Text Recognition
+                </Link>
             </div>
         </main>
     );

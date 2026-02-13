@@ -6,8 +6,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage } from "@langchain/core/messages";
 import sharp from "sharp";
 import {
-    LlmProviderService,
     LlmInfo,
+    LlmProviderService,
 } from "../shared/llm-provider/llm-provider.service";
 
 @Injectable()

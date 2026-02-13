@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { HumanMessage } from "@langchain/core/messages";
 import OpenAI from "openai";
 
 export interface LlmInfo {
@@ -26,75 +27,51 @@ export interface ILlmModel {
     provider: string;
     isImageCapable?: boolean;
     isImageOnly?: boolean;
+    isOcrOnly?: boolean;
 }
 
 const OLLAMA_BASE_URL = "http://localhost:11434/v1";
+
+const OLLAMA_MODELS = new Set([
+    "llava",
+    "moondream",
+    "yasserrmd/Nanonets-OCR2-3B:latest",
+]);
+
+const OCR_MODEL = "yasserrmd/Nanonets-OCR2-3B:latest";
 
 @Injectable()
 export class LlmProviderService {
     private readonly logger = new Logger(LlmProviderService.name);
 
     constructor(
-        @Inject(ConfigService) private readonly configService: ConfigService
+        @Inject(ConfigService)
+        private readonly configService: ConfigService
     ) {}
+
+    /* ------------------------------------------------ */
+    /*                     MODELS                       */
+    /* ------------------------------------------------ */
 
     getAvailableModels(): ILlmModel[] {
         const models: ILlmModel[] = [];
 
-        // OpenAI
-        const openaiKey = this.configService.get("OPENAI_API_KEY");
-        if (openaiKey) {
-            models.push(
-                {
-                    id: "gpt-4o-mini",
-                    name: "GPT-4o Mini",
-                    provider: "OpenAI",
-                },
-                { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI" },
-                {
-                    id: "dall-e-3",
-                    name: "DALL-E 3",
-                    provider: "OpenAI",
-                    isImageCapable: true,
-                    isImageOnly: true,
-                }
-            );
-        }
-
-        // Google
-        const googleKey = this.configService.get("GOOGLE_API_KEY");
-        const useGoogle = this.configService.get("USE_GOOGLE_LLM") === "true";
-        if (googleKey || useGoogle) {
-            models.push(
-                {
-                    id: "gemini-2.5-flash",
-                    name: "Gemini 2.5 Flash",
-                    provider: "Google",
-                },
-                {
-                    id: "gemma-2b-it",
-                    name: "Gemma 2B IT",
-                    provider: "Google",
-                }
-            );
-        }
-
-        // Ollama
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
+
         if (useOllama) {
             models.push(
                 {
                     id: "llava",
-                    name: "Llama/Llava (Ollama)",
+                    name: "Llava (Ollama)",
                     provider: "Ollama",
                     isImageCapable: true,
                 },
                 {
-                    id: "moondream",
-                    name: "Moondream (Ollama)",
+                    id: OCR_MODEL,
+                    name: "Nanonets OCR (Ollama)",
                     provider: "Ollama",
                     isImageCapable: true,
-                    isImageOnly: true,
+                    isOcrOnly: true,
                 }
             );
         }
@@ -102,123 +79,92 @@ export class LlmProviderService {
         return models;
     }
 
+    /* ------------------------------------------------ */
+    /*               OLLAMA BASE FACTORY                */
+    /* ------------------------------------------------ */
+
+    private createOllamaModel(
+        model: string,
+        temperature = 0.7,
+        maxTokens?: number
+    ): ChatOpenAI {
+        return new ChatOpenAI({
+            model,
+            apiKey: "ollama", // dummy value required
+            temperature,
+            maxTokens,
+            configuration: {
+                baseURL: OLLAMA_BASE_URL,
+            },
+        });
+    }
+
+    /* ------------------------------------------------ */
+    /*                  CHAT LLM                        */
+    /* ------------------------------------------------ */
+
     createChatLlm(modelId?: string): ChatLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        const useGoogle = this.configService.get("USE_GOOGLE_LLM") === "true";
+        const targetModel = modelId ?? (useOllama ? "llava" : "gpt-4o-mini");
 
-        let targetModel = modelId;
-
-        // Default logic if no model selected
-        if (!targetModel) {
-            if (useOllama) {
-                targetModel = "llava";
-            } else if (useGoogle) {
-                targetModel = "gemini-2.5-flash";
-            } else {
-                targetModel = "gpt-4o-mini";
-            }
-        }
-
-        if (targetModel === "llava" || targetModel === "moondream") {
+        if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
-            this.logger.log(
-                `Initializing Chat LLM: ${info.platform} (${info.llm})`
-            );
+            this.logger.log(`Initializing Chat LLM: ${info.llm}`);
+
+            const isOcr = targetModel === OCR_MODEL;
+
             return {
-                model: new ChatOpenAI({
-                    model: targetModel,
-                    apiKey: "ollama",
-                    configuration: {
-                        baseURL: OLLAMA_BASE_URL,
-                    },
-                }),
-                info,
-            };
-        } else if (targetModel.startsWith("gemini")) {
-            const info = { platform: "Google", llm: targetModel };
-            this.logger.log(
-                `Initializing Chat LLM: ${info.platform} (${info.llm})`
-            );
-            return {
-                model: new ChatGoogleGenerativeAI({
-                    model: targetModel,
-                    apiKey: this.configService.get("GOOGLE_API_KEY"),
-                }),
-                info,
-            };
-        } else {
-            const info = { platform: "OpenAI", llm: targetModel };
-            this.logger.log(
-                `Initializing Chat LLM: ${info.platform} (${info.llm})`
-            );
-            return {
-                model: new ChatOpenAI({
-                    model: targetModel,
-                    apiKey: this.configService.get("OPENAI_API_KEY"),
-                }),
+                model: this.createOllamaModel(
+                    targetModel,
+                    isOcr ? 0 : 0.7,
+                    isOcr ? 4096 : undefined
+                ),
                 info,
             };
         }
+
+        // OpenAI fallback
+        return {
+            model: new ChatOpenAI({
+                model: targetModel,
+                apiKey: this.configService.get("OPENAI_API_KEY"),
+            }),
+            info: { platform: "OpenAI", llm: targetModel },
+        };
     }
 
     createLanguageTutorLlm(modelId?: string): ChatLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        let targetModel = modelId;
+        const targetModel = modelId ?? (useOllama ? "llava" : "gpt-4o");
 
-        if (!targetModel) {
-            if (useOllama) targetModel = "llava";
-            else targetModel = "gpt-4o";
-        }
-
-        if (targetModel === "llava" || targetModel === "moondream") {
+        if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
-            this.logger.log(
-                `Initializing Tutor LLM: ${info.platform} (${info.llm})`
-            );
+            const isOcr = targetModel === OCR_MODEL;
             return {
-                model: new ChatOpenAI({
-                    model: targetModel,
-                    apiKey: "ollama",
-                    temperature: 0.7,
-                    configuration: { baseURL: OLLAMA_BASE_URL },
-                }),
-                info,
-            };
-        } else if (targetModel.startsWith("gemini")) {
-            const info = { platform: "Google", llm: targetModel };
-            return {
-                model: new ChatGoogleGenerativeAI({
-                    model: targetModel,
-                    apiKey: this.configService.get("GOOGLE_API_KEY"),
-                }),
-                info,
-            };
-        } else {
-            const info = { platform: "OpenAI", llm: targetModel };
-            this.logger.log(
-                `Initializing Tutor LLM: ${info.platform} (${info.llm})`
-            );
-            return {
-                model: new ChatOpenAI({
-                    model: targetModel,
-                    temperature: 0.7,
-                    apiKey: this.configService.get("OPENAI_API_KEY"),
-                }),
+                model: this.createOllamaModel(
+                    targetModel,
+                    isOcr ? 0 : 0.7,
+                    isOcr ? 4096 : undefined
+                ),
                 info,
             };
         }
+
+        return {
+            model: new ChatOpenAI({
+                model: targetModel,
+                temperature: 0.7,
+                apiKey: this.configService.get("OPENAI_API_KEY"),
+            }),
+            info: { platform: "OpenAI", llm: targetModel },
+        };
     }
 
     createLanguageAnalysisLlm(modelId?: string): ChatLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        let targetModel = modelId;
+        const targetModel = modelId ?? (useOllama ? "llava" : "gpt-4o-mini");
 
-        if (!targetModel) {
-            if (useOllama) targetModel = "llava";
-            else targetModel = "gpt-4o-mini";
-        }
-
-        if (targetModel === "llava" || targetModel === "moondream") {
+        if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
             return {
                 model: new ChatOpenAI({
@@ -232,83 +178,78 @@ export class LlmProviderService {
                 }),
                 info,
             };
-        } else if (targetModel.startsWith("gemini")) {
-            const info = { platform: "Google", llm: targetModel };
-            return {
-                model: new ChatGoogleGenerativeAI({
-                    model: targetModel,
-                    temperature: 0.2,
-                    apiKey: this.configService.get("GOOGLE_API_KEY"),
-                }),
-                info,
-            };
-        } else {
-            const info = { platform: "OpenAI", llm: targetModel };
-            return {
-                model: new ChatOpenAI({
-                    model: targetModel,
-                    temperature: 0.2,
-                    apiKey: this.configService.get("OPENAI_API_KEY"),
-                    modelKwargs: {
-                        response_format: { type: "json_object" },
-                    },
-                }),
-                info,
-            };
         }
+
+        return {
+            model: new ChatOpenAI({
+                model: targetModel,
+                temperature: 0.2,
+                apiKey: this.configService.get("OPENAI_API_KEY"),
+                modelKwargs: {
+                    response_format: { type: "json_object" },
+                },
+            }),
+            info: { platform: "OpenAI", llm: targetModel },
+        };
     }
+
+    /* ------------------------------------------------ */
+    /*                  IMAGE LLM                       */
+    /* ------------------------------------------------ */
 
     createImageProcessingProvider(modelId?: string): ImageLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        let targetModel = modelId;
+        const targetModel = modelId ?? (useOllama ? OCR_MODEL : "dall-e-3");
 
-        if (!targetModel) {
-            if (useOllama) targetModel = "llava";
-            else targetModel = "dall-e-3";
-        }
-
-        if (targetModel === "llava" || targetModel === "moondream") {
+        if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
-            this.logger.log(
-                `Initializing Image Provider: ${info.platform} (${info.llm})`
-            );
+            this.logger.log(`Initializing Image Provider: ${info.llm}`);
+
             return {
-                llm: new ChatOpenAI({
-                    model: targetModel,
-                    apiKey: "ollama",
-                    configuration: {
-                        baseURL: OLLAMA_BASE_URL,
-                    },
-                }),
-                info,
-            };
-        } else if (
-            targetModel === "dall-e" ||
-            targetModel === "dall-e-3" ||
-            targetModel === "dall-e-2"
-        ) {
-            const info = { platform: "OpenAI", llm: targetModel };
-            this.logger.log(
-                `Initializing Image Provider: ${info.platform} (${info.llm})`
-            );
-            return {
-                openai: new OpenAI({
-                    apiKey: this.configService.get("OPENAI_API_KEY"),
-                }),
-                info,
-            };
-        } else {
-            // Fallback
-            const info = { platform: "OpenAI", llm: targetModel || "dall-e-3" };
-            this.logger.log(
-                `Initializing Image Provider: ${info.platform} (${info.llm})`
-            );
-            return {
-                openai: new OpenAI({
-                    apiKey: this.configService.get("OPENAI_API_KEY"),
-                }),
+                llm: this.createOllamaModel(targetModel, 0, 4096),
                 info,
             };
         }
+
+        return {
+            openai: new OpenAI({
+                apiKey: this.configService.get("OPENAI_API_KEY"),
+            }),
+            info: { platform: "OpenAI", llm: targetModel },
+        };
+    }
+
+    /* ------------------------------------------------ */
+    /*                    OCR HELPER                    */
+    /* ------------------------------------------------ */
+
+    async extractTextFromBase64Image(
+        base64Image: string,
+        prompt = "Extract all text exactly as written."
+    ): Promise<string> {
+        const provider = this.createImageProcessingProvider(OCR_MODEL);
+
+        if (!provider.llm) {
+            throw new Error("OCR model not available.");
+        }
+
+        const response = await provider.llm.invoke([
+            new HumanMessage({
+                content: [
+                    {
+                        type: "text",
+                        text: prompt,
+                    },
+                    {
+                        type: "image_url",
+                        image_url: {
+                            url: `data:image/png;base64,${base64Image}`,
+                        },
+                    },
+                ],
+            }),
+        ]);
+
+        return response.content as string;
     }
 }
