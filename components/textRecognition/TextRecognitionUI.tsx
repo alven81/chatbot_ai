@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import {
-    getImageHealth,
+    getTextRecognitionHealth,
     HealthStatus,
     recognizeText as recognizeTextRequest,
 } from "../../services/request";
@@ -51,27 +51,35 @@ const TextRecognitionUI = () => {
     const [error, setError] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
-        getImageHealth().then(setStatus);
+        getTextRecognitionHealth().then(setStatus);
     }, []);
 
-    // Load/Save selected model
+    // Load/Save selected model.
+    // Priority: saved valid vision model → first image-capable model → first any model.
     useEffect(() => {
+        if (!status.availableModels || status.availableModels.length === 0)
+            return;
+
+        const visionModels = status.availableModels.filter(
+            (m) => m.isImageCapable || m.isOcrOnly
+        );
         const saved = localStorage.getItem("text_recognition_model_id");
-        if (saved) {
+
+        if (saved && visionModels.some((m) => m.id === saved)) {
+            // Saved value is a valid vision model — keep it.
             setSelectedModel(saved);
-        } else if (
-            status.availableModels &&
-            status.availableModels.length > 0
-        ) {
-            // Favor OCR-specific models if available
-            const ocrModel = status.availableModels.find((m) => m.isOcrOnly);
-            if (ocrModel) {
-                setSelectedModel(ocrModel.id);
-            } else {
-                setSelectedModel(status.availableModels[0].id);
-            }
+        } else if (visionModels.length > 0) {
+            // Prefer non-OCR-only (i.e. general vision) models as default since
+            // dedicated OCR models (Nanonets) may hallucinate on clean images.
+            const preferred =
+                visionModels.find((m) => !m.isOcrOnly) ?? visionModels[0];
+            setSelectedModel(preferred.id);
+            localStorage.setItem("text_recognition_model_id", preferred.id);
+        } else {
+            setSelectedModel(status.availableModels[0].id);
         }
     }, [status]);
 
@@ -121,8 +129,21 @@ const TextRecognitionUI = () => {
         e.stopPropagation();
     };
 
+    const RECOGNITION_TIMEOUT_MS = 180_000;
+
     const recognizeText = async () => {
         if (!uploadedImage) return;
+
+        // Cancel any previous in-flight request
+        abortControllerRef.current?.abort();
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        // Client-side timeout: auto-abort after RECOGNITION_TIMEOUT_MS
+        const timeoutId = setTimeout(
+            () => controller.abort(),
+            RECOGNITION_TIMEOUT_MS
+        );
 
         setIsProcessing(true);
         setError(null);
@@ -131,24 +152,37 @@ const TextRecognitionUI = () => {
         try {
             const base64Data = uploadedImage.split(",")[1];
 
-            const data = await recognizeTextRequest({
-                imageBase64: base64Data,
-                language: recognitionLanguage,
-                modelId: selectedModel,
-            });
+            const data = await recognizeTextRequest(
+                {
+                    imageBase64: base64Data,
+                    language: recognitionLanguage,
+                    modelId: selectedModel,
+                },
+                controller.signal
+            );
 
             setRecognizedText(data.text);
         } catch (err: any) {
+            if (err.message === "cancelled") {
+                // Silently ignore — user clicked Reset or timeout fired
+                return;
+            }
             console.error("Text recognition error:", err);
             setError(
                 err.message || "Failed to recognize text. Please try again."
             );
         } finally {
+            clearTimeout(timeoutId);
+            abortControllerRef.current = null;
             setIsProcessing(false);
         }
     };
 
     const resetAll = () => {
+        // Abort any in-flight recognition immediately
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        setIsProcessing(false);
         setUploadedImage(null);
         setRecognizedText("");
         setError(null);
@@ -194,7 +228,11 @@ const TextRecognitionUI = () => {
                                 onChange={handleModelChange}
                             >
                                 {status.availableModels
-                                    .filter((model) => model.isOcrOnly)
+                                    .filter(
+                                        (model) =>
+                                            model.isImageCapable ||
+                                            model.isOcrOnly
+                                    )
                                     .map((m) => (
                                         <option key={m.id} value={m.id}>
                                             {m.name}
@@ -240,10 +278,10 @@ const TextRecognitionUI = () => {
                         {isProcessing ? "Recognizing..." : "Recognize Text"}
                     </button>
                     <button
-                        className="btn btn-outline-light btn-sm"
+                        className={`btn btn-sm ${isProcessing ? "btn-danger" : "btn-outline-light"}`}
                         onClick={resetAll}
                     >
-                        Reset
+                        {isProcessing ? "Cancel" : "Reset"}
                     </button>
                 </div>
             </header>

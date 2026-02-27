@@ -132,30 +132,56 @@ export class TextRecognitionService implements OnModuleInit {
                 `Image optimized — original: ${inputBuffer.length} bytes, optimized: ${resizedBuffer.length} bytes (2000px, PNG)`
             );
 
-            // Build specialized OCR prompt.
-            // Simplified prompt for better stability:
-            const ocrPrompt =
-                "Transcribe the text in the image exactly as it appears. Do not summarize. Do not explain. Do not generate any new text. Just output the text found in the image.";
+            // Build OCR prompt — uses a few-shot style so that even simple
+            // vision models (llava) understand we want raw text, not a description.
+            const languageHint =
+                language && language !== "Auto define language"
+                    ? `The text is in ${language}.\n`
+                    : "";
+            const userPrompt =
+                `${languageHint}` +
+                "[INST]\n" +
+                "OCR the text in this image. Output the exact text only.\n" +
+                "Do NOT describe the image. Do NOT explain. Do NOT summarize.\n" +
+                "Just output the text character by character as it appears.\n" +
+                "\n" +
+                "Example — if the image contains:\n" +
+                "  Hello World\n" +
+                "  Welcome to the app\n" +
+                "Then you output:\n" +
+                "  Hello World\n" +
+                "  Welcome to the app\n" +
+                "\n" +
+                "Now OCR this image:\n" +
+                "[/INST]";
 
             // Send to vision model
-            this.logger.log("Sending image to Ollama OCR model...");
+            this.logger.log(
+                `Sending image to OCR model (${modelId}), prompt length: ${userPrompt.length}`
+            );
 
             const response = await llm.invoke([
                 new HumanMessage({
                     content: [
+                        {
+                            type: "text",
+                            text: userPrompt,
+                        },
                         {
                             type: "image_url",
                             image_url: {
                                 url: `data:image/png;base64,${base64ForLlm}`,
                             },
                         },
-                        {
-                            type: "text",
-                            text: ocrPrompt,
-                        },
                     ],
                 }),
             ]);
+
+            this.logger.log(
+                `Raw model response type: ${typeof response.content}, ` +
+                    `isArray: ${Array.isArray(response.content)}, ` +
+                    `length: ${JSON.stringify(response.content).length}`
+            );
 
             // Extract text from response
             let extractedText = "";

@@ -2,7 +2,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import OpenAI from "openai";
 
 export interface LlmInfo {
@@ -82,8 +82,16 @@ export class LlmProviderService {
 
         if (openaiKey) {
             models.push(
-                { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI" },
-                { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI" }
+                {
+                    id: "gpt-4o",
+                    name: "GPT-4o",
+                    provider: "OpenAI",
+                },
+                {
+                    id: "gpt-4o-mini",
+                    name: "GPT-4o Mini",
+                    provider: "OpenAI",
+                }
             );
         }
 
@@ -263,9 +271,24 @@ export class LlmProviderService {
         if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
             this.logger.log(`Initializing Image Provider: ${info.llm}`);
+            const isOcr = targetModel === OCR_MODEL;
 
             return {
-                llm: this.createOllamaModel(targetModel, 0, 4096),
+                llm: new ChatOpenAI({
+                    model: targetModel,
+                    apiKey: "ollama",
+                    temperature: 0,
+                    maxTokens: isOcr ? 2048 : 4096,
+                    configuration: { baseURL: OLLAMA_BASE_URL },
+                    // Prevent repetition loops that produce hallucinated binary/garbage output
+                    modelKwargs: isOcr
+                        ? {
+                              repeat_penalty: 1.3,
+                              num_ctx: 8192,
+                              top_p: 0.9,
+                          }
+                        : {},
+                }),
                 info,
             };
         }

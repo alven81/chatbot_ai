@@ -55,6 +55,17 @@ export const getImageHealth = async (): Promise<HealthStatus> => {
     }
 };
 
+export const getTextRecognitionHealth = async (): Promise<HealthStatus> => {
+    try {
+        const resp = await fetch(`${API_URL}/text-recognition/health`, {
+            cache: "no-store",
+        });
+        return await resp.json();
+    } catch (e) {
+        return { platform: "Unknown", llm: "Unknown" };
+    }
+};
+
 export const getLanguageHealth = async (): Promise<HealthStatus> => {
     try {
         const resp = await fetch(`${API_URL}/language-learning/health`, {
@@ -83,13 +94,15 @@ export interface TextRecognitionRequest {
 }
 
 export const recognizeText = async (
-    request: TextRecognitionRequest
+    request: TextRecognitionRequest,
+    signal?: AbortSignal
 ): Promise<{ text: string }> => {
     try {
         const response = await fetch(`${API_URL}/text-recognition/recognize`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(request),
+            signal,
         });
 
         if (!response.ok) {
@@ -102,6 +115,9 @@ export const recognizeText = async (
         const data = await response.json();
         return data;
     } catch (error: any) {
+        if (error.name === "AbortError") {
+            throw new Error("cancelled");
+        }
         throw new Error(error.message || "Failed to recognize text");
     }
 };
