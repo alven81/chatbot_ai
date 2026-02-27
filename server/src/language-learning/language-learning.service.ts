@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { BaseMessage, AIMessage, HumanMessage } from "@langchain/core/messages";
 import {
@@ -17,8 +18,8 @@ import {
 export class LanguageLearningService implements OnModuleInit {
     private readonly logger = new Logger(LanguageLearningService.name);
     private readonly chatHistories: Map<string, BaseMessage[]> = new Map();
-    private llm!: ChatOpenAI;
-    private analysisLlm!: ChatOpenAI;
+    private llm!: ChatOpenAI | ChatGoogleGenerativeAI;
+    private analysisLlm!: ChatOpenAI | ChatGoogleGenerativeAI;
     private llmInfo!: LlmInfo;
     private readonly outputParser = new StringOutputParser();
 

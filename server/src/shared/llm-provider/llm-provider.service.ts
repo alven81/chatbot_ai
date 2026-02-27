@@ -38,6 +38,8 @@ const OLLAMA_MODELS = new Set([
     "yasserrmd/Nanonets-OCR2-3B:latest",
 ]);
 
+const GOOGLE_MODELS = new Set(["gemini-3.1-pro-preview"]);
+
 const OCR_MODEL = "yasserrmd/Nanonets-OCR2-3B:latest";
 
 @Injectable()
@@ -57,6 +59,8 @@ export class LlmProviderService {
         const models: ILlmModel[] = [];
 
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
+        const openaiKey = this.configService.get("OPENAI_API_KEY");
+        const googleKey = this.configService.get("GOOGLE_API_KEY");
 
         if (useOllama) {
             models.push(
@@ -74,6 +78,21 @@ export class LlmProviderService {
                     isOcrOnly: true,
                 }
             );
+        }
+
+        if (openaiKey) {
+            models.push(
+                { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI" },
+                { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI" }
+            );
+        }
+
+        if (googleKey) {
+            models.push({
+                id: "gemini-3.1-pro-preview",
+                name: "Gemini 3.1 Pro Preview",
+                provider: "Google",
+            });
         }
 
         return models;
@@ -135,7 +154,16 @@ export class LlmProviderService {
 
     createLanguageTutorLlm(modelId?: string): ChatLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        const targetModel = modelId ?? (useOllama ? "llava" : "gpt-4o");
+        const useGoogle = this.configService.get("USE_GOOGLE_LLM") === "true";
+        let defaultModel: string;
+        if (useOllama) {
+            defaultModel = "llava";
+        } else if (useGoogle) {
+            defaultModel = "gemini-2.0-flash";
+        } else {
+            defaultModel = "gpt-4o";
+        }
+        const targetModel = modelId ?? defaultModel;
 
         if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
@@ -147,6 +175,17 @@ export class LlmProviderService {
                     isOcr ? 4096 : undefined
                 ),
                 info,
+            };
+        }
+
+        if (GOOGLE_MODELS.has(targetModel)) {
+            return {
+                model: new ChatGoogleGenerativeAI({
+                    model: targetModel,
+                    temperature: 0.7,
+                    apiKey: this.configService.get("GOOGLE_API_KEY"),
+                }),
+                info: { platform: "Google", llm: targetModel },
             };
         }
 
@@ -162,7 +201,16 @@ export class LlmProviderService {
 
     createLanguageAnalysisLlm(modelId?: string): ChatLlmProvider {
         const useOllama = this.configService.get("USE_OLLAMA") === "true";
-        const targetModel = modelId ?? (useOllama ? "llava" : "gpt-4o-mini");
+        const useGoogle = this.configService.get("USE_GOOGLE_LLM") === "true";
+        let defaultModel: string;
+        if (useOllama) {
+            defaultModel = "llava";
+        } else if (useGoogle) {
+            defaultModel = "gemini-2.0-flash";
+        } else {
+            defaultModel = "gpt-4o-mini";
+        }
+        const targetModel = modelId ?? defaultModel;
 
         if (useOllama && OLLAMA_MODELS.has(targetModel)) {
             const info = { platform: "Ollama", llm: targetModel };
@@ -177,6 +225,17 @@ export class LlmProviderService {
                     },
                 }),
                 info,
+            };
+        }
+
+        if (GOOGLE_MODELS.has(targetModel)) {
+            return {
+                model: new ChatGoogleGenerativeAI({
+                    model: targetModel,
+                    temperature: 0.2,
+                    apiKey: this.configService.get("GOOGLE_API_KEY"),
+                }),
+                info: { platform: "Google", llm: targetModel },
             };
         }
 
