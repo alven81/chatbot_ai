@@ -1,8 +1,22 @@
-# AI Chatbot with Next.js + NestJS + LangChain
+# 🤖 AI Chatbot — Next.js + NestJS + LangChain
 
-A modern, decoupled chatbot application using a **Next.js** frontend with Server-Side Rendering (SSR) and a **NestJS** backend with LangChain integration.
+A modern, full-stack AI application with a **Next.js** frontend (App Router + SSR) and a **NestJS** backend powered by **LangChain**.  
+Supports multiple LLM providers and four distinct AI-powered features.
 
-## Quick Start
+---
+
+## ✨ Features
+
+| Feature | Description |
+| --- | --- |
+| 💬 **Intelligent Chat** | Context-aware conversations with session history and streaming |
+| 🖼️ **Image Processing** | AI-powered image analysis and style transformation |
+| 🌍 **Language Learning** | Interactive tutor with message correction and grammar feedback |
+| 🔍 **Text Recognition (OCR)** | Extract text from images using specialized local vision models |
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js >= 20.0.0
@@ -14,276 +28,307 @@ A modern, decoupled chatbot application using a **Next.js** frontend with Server
 npm install
 ```
 
-## Running the Application
+### Run
 
-Started both applications with a single command:
 ```bash
+# Start both Frontend and Backend concurrently
 npm run dev
 ```
 
-- **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Backend**: [http://localhost:3001](http://localhost:3001)
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:3001
+- **Swagger UI**: http://localhost:3001/swagger
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
-This project uses a **Decoupled Architecture**:
+```
+Browser (Next.js :3000)  ──→  NestJS API (:3001)  ──→  LLM Provider
+                                    │                   (OpenAI / Google / Ollama)
+                                    ↓
+                           LlmProviderService
+                           (shared, injected globally)
+```
 
-1.  **Frontend (Next.js)**: 
-    - Uses **App Router**.
-    - **Server Components (SSR)**: The landing page fetches initial system health and LLM provider status directly from the API before rendering.
-    - **Client Components**: Interactive chat interface with streaming support.
-2.  **Backend (NestJS)**:
-    - **Modular Design**: Structured into `ChatModule`, `ChatService`, and `ChatController`.
-    - **Dependency Injection**: Full use of NestJS DI for services and configuration.
+**Frontend (Next.js)**
+- App Router with SSR — the landing page fetches provider health on the server before rendering
+- Client Components handle streaming via Server-Sent Events (SSE)
+
+**Backend (NestJS)**
+- Four feature modules: `ChatModule`, `ImageProcessingModule`, `LanguageLearningModule`, `TextRecognitionModule`
+- Shared `LlmProviderModule` — globally available service that creates and configures LLM instances
+- Body size limit raised to **50 MB** to support base64 image payloads
+- Swagger documentation auto-generated at `/swagger`
 
 ---
 
-## LLM Provider Options
+## 🤖 LLM Provider Options
 
-### Option 1: Google Gemini (Free Tier with Quota Limits)
+### Option 1: 🌟 Google Gemini (Free Tier)
 
-**Pros:**
-- Completely free
-- Good quality responses
-- Easy setup
+**Pros:** Free · Good quality · Easy setup  
+**Cons:** Daily quota limits
 
-**Cons:**
-- Daily quota limits
-- Rate limiting after quota exceeded
-
-**Setup:**
-```bash
-# .env file
+```env
 USE_GOOGLE_LLM=true
-GOOGLE_API_KEY=your_google_api_key
+USE_OPENAI_LLM=false
+USE_OLLAMA=false
+GOOGLE_API_KEY=your_key_here
 ```
 
-**Get API Key:**
-1. Visit https://aistudio.google.com/apikey
-2. Click "Create API Key"
-3. Copy and paste into `.env`
-
-**Run:**
-```bash
-npm run dev
-```
+Get API Key: https://aistudio.google.com/apikey
 
 ---
 
-### Option 2: OpenAI (Paid)
+### Option 2: 💳 OpenAI (Paid)
 
-**Pros:**
-- Fastest and most capable model
-- No quota limits (only rate limits)
-- High quality
+**Pros:** Highest quality · Fastest · No quota  
+**Cons:** Costs money
 
-**Cons:**
-- Requires paid account
-- Costs money (but very cheap for light usage)
-
-**Setup:**
-```bash
-# .env file
-OPENAI_API_KEY=your_openai_api_key
+```env
+USE_OPENAI_LLM=true
 USE_GOOGLE_LLM=false
 USE_OLLAMA=false
+OPENAI_API_KEY=your_key_here
 ```
 
-**Get API Key:**
-1. Visit https://platform.openai.com/account/billing/overview
-2. Add a payment method
-3. Generate API key at https://platform.openai.com/api-keys
-4. Copy and paste into `.env`
-
-**Cost:**
-- gpt-4o-mini: ~$0.15 per million input tokens
-- Light usage typically costs $1-5/month
-
-**Run:**
-```bash
-npm run server
-```
+Get API Key: https://platform.openai.com/api-keys  
+Cost: `gpt-4o-mini` ~$0.15 / 1M input tokens
 
 ---
 
-### Option 3: Ollama (Local, Completely Free)
+### Option 3: 🏠 Ollama (Local, Completely Free)
 
-**Pros:**
-- Completely free
-- No API keys needed
-- Runs entirely offline
-- No quota limits
+**Pros:** Free · Offline · No quotas · No API keys  
+**Cons:** Slower · Requires local CPU/GPU · Smaller models
 
-**Cons:**
-- Slower responses (depends on your CPU)
-- Requires local installation
-- Smaller models (less capable)
+**1. Install Ollama:** https://ollama.ai
 
-**Setup:**
-
-1. **Install Ollama:**
-   - Download from https://ollama.ai
-   - Install and run
-
-2. **Download a model (choose one):**
-   ```bash
-   ollama pull llama2           # 4GB, good balance
-   ollama pull mistral          # 5GB, faster
-   ollama pull neural-chat      # 4GB, good for chat
-   ```
-
-3. **Configure your app:**
-   ```bash
-   # .env file
-   USE_OLLAMA=true
-   USE_GOOGLE_LLM=false
-   ```
-
-4. **Verify Ollama is running:**
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
-
-5. **Start the server:**
-   ```bash
-   npm run dev
-   ```
-
----
-
-## Available Scripts
+**2. Pull recommended models:**
 
 ```bash
-# Start both Frontend and Backend in development mode
-npm run dev
+# General purpose chat + vision
+ollama pull llava
 
-# Start only the Next.js Frontend
-npm run dev:frontend
+# Lightweight vision model
+ollama pull moondream
 
-# Start only the NestJS Backend
-npm run dev:backend
+# Specialized OCR model (required for Text Recognition)
+ollama pull yasserrmd/Nanonets-OCR2-3B:latest
+```
 
-# Build the Next.js Frontend for production
-npm run build
+**3. Configure:**
 
-# Start the production Frontend
-npm start
+```env
+USE_OLLAMA=true
+USE_GOOGLE_LLM=false
+USE_OPENAI_LLM=false
+```
 
-# Format code with Prettier
-npm run format
+**4. Verify Ollama is running:**
+
+```bash
+curl http://localhost:11434/api/tags
 ```
 
 ---
 
-## API Endpoints (NestJS - Port 3001)
+## 📜 Available Scripts
 
-### Health Check
+```bash
+npm run dev              # Start both Frontend and Backend concurrently (recommended)
+npm run dev:frontend     # Start only Next.js frontend (port 3000)
+npm run dev:backend      # Start only NestJS backend (port 3001)
+npm run build            # Build Next.js for production
+npm start                # Start the production Next.js server
+npm run format           # Format all code with Prettier
+npm run check-types      # Run TypeScript type check (no emit)
 ```
-GET http://localhost:3001/api/health
-```
-Returns status and active LLM provider (OpenAI, Google, or Ollama).
 
-### Chat with History
-```
-POST http://localhost:3001/api/chat/history
-Content-Type: application/json
+---
 
+## 📡 API Endpoints
+
+Base URL: `http://localhost:3001/api`  
+Full interactive docs: **http://localhost:3001/swagger**
+
+### 💬 Chat
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/chat/history` | Send a message and get a full response |
+| `POST` | `/chat/stream` | Send a message and get a streaming response (SSE) |
+| `POST` | `/chat/clear` | Clear chat history for a session |
+| `GET` | `/chat/health` | Health check and active LLM provider info |
+
+```json
+// POST /api/chat/history or /api/chat/stream
 {
-  "message": "What did we discuss before?",
-  "sessionId": "user-123"
+  "message": "Tell me a joke",
+  "sessionId": "user-123",
+  "modelId": "gpt-4o-mini"
+}
+
+// POST /api/chat/clear
+{ "sessionId": "user-123" }
+```
+
+### 🖼️ Image Processing
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/image-processing/process` | Analyze and transform an image |
+| `GET` | `/image-processing/health` | Health check and active LLM provider info |
+
+```json
+// POST /api/image-processing/process
+{
+  "imageBase64": "...",
+  "styleDescription": "winter jacket, urban style",
+  "modelId": "dall-e-3"
 }
 ```
 
-### Streaming Chat (Server-Sent Events)
-```
-POST http://localhost:3001/api/chat/stream
-Content-Type: application/json
+### 🌍 Language Learning
 
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/language-learning/stream` | Start a language tutor session with SSE streaming |
+| `POST` | `/language-learning/clear` | Clear session history |
+| `GET` | `/language-learning/health` | Health check and active LLM provider info |
+
+```json
+// POST /api/language-learning/stream
 {
-  "message": "Tell me a story",
-  "sessionId": "user-123"
+  "message": "Hola, como estas?",
+  "sessionId": "user-123",
+  "learningLanguage": "Spanish",
+  "userLanguage": "English",
+  "learningLevel": "Beginner",
+  "userProfession": "Software Engineer",
+  "modelId": "gpt-4o"
+}
+```
+
+### 🔍 Text Recognition (OCR)
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/text-recognition/recognize` | Extract text from a base64-encoded image |
+| `GET` | `/text-recognition/health` | Health check and active LLM provider info |
+
+```json
+// POST /api/text-recognition/recognize
+{
+  "imageBase64": "...",
+  "language": "Auto define language",
+  "modelId": "yasserrmd/Nanonets-OCR2-3B:latest"
 }
 ```
 
 ---
 
-## Troubleshooting
-
-### "EADDRINUSE: address already in use :::3001"
-This happens if a previous process is still running. Kill it before restarting:
-- **Windows**: `netstat -ano | findstr :3001` then `taskkill /F /PID <PID>`
-- **Mac/Linux**: `lsof -i :3001` then `kill -9 <PID>`
-
-### CORS errors in browser
-- The backend is configured to allow `http://localhost:3000`. 
-- CORS setup is handled in `server/src/main.ts` via `app.enableCors()`.
-
----
-
-## Project Structure
+## 🗂️ Project Structure
 
 ```
 chatbot_ai/
-├── app/                    # Next.js App Router (Frontend)
-│   ├── chat/              # Chat application page
-│   ├── image-processing/  # Image analysis page
-│   ├── language-learning/ # Language education page
-│   └── page.tsx           # Landing page
-├── components/             # UI Components
-│   ├── ChatUI.tsx         # Standard chat interface
-│   ├── imageProcessing/   # Image processing UI & styles
-│   └── languageLearning/  # Language learning UI & styles
-├── server/                 # NestJS Application (Backend)
+├── app/                         # Next.js App Router (Frontend)
+│   ├── chat/                   # Chat page
+│   ├── image-processing/       # Image processing page
+│   ├── language-learning/      # Language learning page
+│   ├── text-recognition/       # OCR page
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Landing page (SSR health fetch)
+├── components/                  # Reusable UI components
+│   ├── ChatUI.tsx              # Chat interface (streaming + history)
+│   ├── imageProcessing/        # Image processing UI and styles
+│   ├── languageLearning/       # Language learning UI and styles
+│   └── textRecognition/        # OCR UI and styles
+├── server/                      # NestJS Application (Backend)
 │   └── src/
-│       ├── chat/          # Chat service logic
-│       ├── image-processing/ # Image analysis logic
-│       └── language-learning/# Language processing logic
-│       └── main.ts        # NestJS Entry Point
-├── .env                    # API keys
-└── package.json            # Scripts & Workspace Dependencies
+│       ├── app.module.ts       # Root module
+│       ├── main.ts             # Entry point (port 3001)
+│       ├── chat/               # Chat module (history + streaming)
+│       ├── image-processing/   # Image analysis module
+│       ├── language-learning/  # Language tutor module
+│       ├── text-recognition/   # OCR module
+│       └── shared/
+│           └── llm-provider/   # Global LLM factory service
+├── services/                    # Frontend API client helpers
+├── example.env                  # Environment variable template
+└── package.json
 ```
 
-## Core Components
-
-- **ChatUI**: A robust interface for text-based AI interactions, supporting streaming and chat history.
-- **ImageProcessingUI**: Specific UI for uploading and analyzing images via AI.
-- **LanguageLearningUI**: Specialized interface designed for language practice and learning exercises.
-
 ---
 
-## Comparison
+## 🔧 Environment Variables
 
-| Feature     | Gemini   | OpenAI    | Ollama       |
-| ----------- | -------- | --------- | ------------ |
-| Cost        | Free     | Paid      | Free         |
-| Quality     | Good     | Excellent | Good         |
-| Speed       | Fast     | Fast      | Slow         |
-| Offline     | No       | No        | Yes          |
-| Setup       | Easy     | Easy      | Medium       |
-| Daily Limit | Yes      | No        | No           |
-| Internet    | Required | Required  | Not required |
-
----
-
-## Environment Variables
+Copy `example.env` to `.env` and fill in your keys:
 
 ```env
-# Choose one:
-# For OpenAI (requires paid account)
-OPENAI_API_KEY=sk-...
-
-# For Google Gemini (free tier)
-GOOGLE_API_KEY=AIza...
-USE_GOOGLE_LLM=true
-
-# For Ollama (local, free)
+# Enable/disable providers (set true or false)
 USE_OLLAMA=true
+USE_GOOGLE_LLM=true
+USE_OPENAI_LLM=true
+
+# API Keys
+GOOGLE_API_KEY=
+OPENAI_API_KEY=
+
+# Optional
+# AWS_ACCESS_KEY_ID=
+# AWS_SECRET_ACCESS_KEY=
+# ANTHROPIC_API_KEY=
+# PINECONE_API_KEY=
+
+# Observability
+# LANGCHAIN_TRACING_V2=true
+# LANGCHAIN_API_KEY=
 ```
 
 ---
 
-## License
+## 🆚 Provider Comparison
+
+| Feature | 🌟 Gemini | 💳 OpenAI | 🏠 Ollama |
+| --- | --- | --- | --- |
+| Cost | Free | Paid | Free |
+| Quality | Good | Excellent | Good |
+| Speed | Fast | Fast | Slow |
+| Offline | ❌ | ❌ | ✅ |
+| Setup | Easy | Easy | Medium |
+| Daily Limit | ✅ | ❌ | ❌ |
+| Internet | Required | Required | Not needed |
+
+---
+
+## 🩺 Troubleshooting
+
+### `EADDRINUSE: address already in use :::3001`
+
+A previous process is still running. Kill it first:
+
+```bash
+# Windows
+netstat -ano | findstr :3001
+taskkill /F /PID <PID>
+
+# Mac / Linux
+lsof -i :3001
+kill -9 <PID>
+```
+
+### CORS errors
+
+CORS is open (`app.enableCors()` in `server/src/main.ts`). Changing the frontend port requires no additional backend config.
+
+### Large image uploads failing
+
+The server accepts payloads up to **50 MB**. If you hit this limit, reduce image resolution before uploading.
+
+---
+
+## 📄 License
 
 MIT
