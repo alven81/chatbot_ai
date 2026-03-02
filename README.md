@@ -7,11 +7,11 @@ Supports multiple LLM providers and four distinct AI-powered features.
 
 ## ✨ Features
 
-| Feature | Description |
-| --- | --- |
-| 💬 **Intelligent Chat** | Context-aware conversations with session history and streaming |
-| 🖼️ **Image Processing** | AI-powered image analysis and style transformation |
-| 🌍 **Language Learning** | Interactive tutor with message correction and grammar feedback |
+| Feature                      | Description                                                    |
+| ---------------------------- | -------------------------------------------------------------- |
+| 💬 **Intelligent Chat**       | Context-aware conversations with session history and streaming |
+| 🖼️ **Image Processing**       | AI-powered image analysis and style transformation             |
+| 🌍 **Language Learning**      | Interactive tutor with message correction and grammar feedback |
 | 🔍 **Text Recognition (OCR)** | Extract text from images using specialized local vision models |
 
 ---
@@ -155,12 +155,12 @@ Full interactive docs: **http://localhost:3001/swagger**
 
 ### 💬 Chat
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/chat/history` | Send a message and get a full response |
-| `POST` | `/chat/stream` | Send a message and get a streaming response (SSE) |
-| `POST` | `/chat/clear` | Clear chat history for a session |
-| `GET` | `/chat/health` | Health check and active LLM provider info |
+| Method | Endpoint        | Description                                       |
+| ------ | --------------- | ------------------------------------------------- |
+| `POST` | `/chat/history` | Send a message and get a full response            |
+| `POST` | `/chat/stream`  | Send a message and get a streaming response (SSE) |
+| `POST` | `/chat/clear`   | Clear chat history for a session                  |
+| `GET`  | `/chat/health`  | Health check and active LLM provider info         |
 
 ```json
 // POST /api/chat/history or /api/chat/stream
@@ -176,10 +176,10 @@ Full interactive docs: **http://localhost:3001/swagger**
 
 ### 🖼️ Image Processing
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/image-processing/process` | Analyze and transform an image |
-| `GET` | `/image-processing/health` | Health check and active LLM provider info |
+| Method | Endpoint                    | Description                               |
+| ------ | --------------------------- | ----------------------------------------- |
+| `POST` | `/image-processing/process` | Analyze and transform an image            |
+| `GET`  | `/image-processing/health`  | Health check and active LLM provider info |
 
 ```json
 // POST /api/image-processing/process
@@ -192,11 +192,11 @@ Full interactive docs: **http://localhost:3001/swagger**
 
 ### 🌍 Language Learning
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
+| Method | Endpoint                    | Description                                       |
+| ------ | --------------------------- | ------------------------------------------------- |
 | `POST` | `/language-learning/stream` | Start a language tutor session with SSE streaming |
-| `POST` | `/language-learning/clear` | Clear session history |
-| `GET` | `/language-learning/health` | Health check and active LLM provider info |
+| `POST` | `/language-learning/clear`  | Clear session history                             |
+| `GET`  | `/language-learning/health` | Health check and active LLM provider info         |
 
 ```json
 // POST /api/language-learning/stream
@@ -213,10 +213,10 @@ Full interactive docs: **http://localhost:3001/swagger**
 
 ### 🔍 Text Recognition (OCR)
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/text-recognition/recognize` | Extract text from a base64-encoded image |
-| `GET` | `/text-recognition/health` | Health check and active LLM provider info |
+| Method | Endpoint                      | Description                               |
+| ------ | ----------------------------- | ----------------------------------------- |
+| `POST` | `/text-recognition/recognize` | Extract text from a base64-encoded image  |
+| `GET`  | `/text-recognition/health`    | Health check and active LLM provider info |
 
 ```json
 // POST /api/text-recognition/recognize
@@ -275,31 +275,21 @@ USE_OPENAI_LLM=true
 # API Keys
 GOOGLE_API_KEY=
 OPENAI_API_KEY=
-
-# Optional
-# AWS_ACCESS_KEY_ID=
-# AWS_SECRET_ACCESS_KEY=
-# ANTHROPIC_API_KEY=
-# PINECONE_API_KEY=
-
-# Observability
-# LANGCHAIN_TRACING_V2=true
-# LANGCHAIN_API_KEY=
 ```
 
 ---
 
 ## 🆚 Provider Comparison
 
-| Feature | 🌟 Gemini | 💳 OpenAI | 🏠 Ollama |
-| --- | --- | --- | --- |
-| Cost | Free | Paid | Free |
-| Quality | Good | Excellent | Good |
-| Speed | Fast | Fast | Slow |
-| Offline | ❌ | ❌ | ✅ |
-| Setup | Easy | Easy | Medium |
-| Daily Limit | ✅ | ❌ | ❌ |
-| Internet | Required | Required | Not needed |
+| Feature     | 🌟 Gemini | 💳 OpenAI  | 🏠 Ollama   |
+| ----------- | -------- | --------- | ---------- |
+| Cost        | Free     | Paid      | Free       |
+| Quality     | Good     | Excellent | Good       |
+| Speed       | Fast     | Fast      | Slow       |
+| Offline     | ❌        | ❌         | ✅          |
+| Setup       | Easy     | Easy      | Medium     |
+| Daily Limit | ✅        | ❌         | ❌          |
+| Internet    | Required | Required  | Not needed |
 
 ---
 
