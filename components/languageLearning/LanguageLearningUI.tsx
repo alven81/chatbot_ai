@@ -19,6 +19,14 @@ interface Message {
     isStreaming?: boolean;
 }
 
+interface VocabEntry {
+    id: string;
+    proposal: string;
+    translation: string;
+    addedAt: string;
+    isHidden?: boolean;
+}
+
 const LANGUAGES = [
     "Polish",
     "English",
@@ -76,9 +84,173 @@ const LanguageLearningUI = () => {
     });
     const [selectedModel, setSelectedModel] = useState<string>("");
     const [isSettingsOpen, setIsSettingsOpen] = useState(true);
-    const [sessionId] = useState(() => `lang-session-${Date.now()}`);
+    const sessionIdRef = useRef<string>("");
+    const [isVocabModalOpen, setIsVocabModalOpen] = useState(false);
+    const [isAddVocabModalOpen, setIsAddVocabModalOpen] = useState(false);
+    const [isEditVocabModalOpen, setIsEditVocabModalOpen] = useState(false);
+    const [vocabFilterMode, setVocabFilterMode] = useState<
+        "all" | "visible" | "hidden"
+    >("visible");
+    const [pendingVocabEntry, setPendingVocabEntry] = useState<{
+        proposal: string;
+        translation: string;
+    } | null>(null);
+    const [editingEntry, setEditingEntry] = useState<VocabEntry | null>(null);
+    const [editProposal, setEditProposal] = useState("");
+    const [editTranslation, setEditTranslation] = useState("");
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [sessionAlert, setSessionAlert] = useState<{
+        type: "error" | "warning" | "info";
+        message: string;
+    } | null>(null);
+    const [vocabulary, setVocabulary] = useState<VocabEntry[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const uploadInputRef = useRef<HTMLInputElement>(null);
+
+    // --- Vocabulary helpers ---
+    const getVocabKey = () => `vocab_${userLanguage}_${learningLanguage}`;
+
+    const loadVocabulary = (): VocabEntry[] => {
+        try {
+            const raw = localStorage.getItem(getVocabKey());
+            return raw ? JSON.parse(raw) : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const saveVocabulary = (entries: VocabEntry[]) => {
+        localStorage.setItem(getVocabKey(), JSON.stringify(entries));
+        setVocabulary(entries);
+    };
+
+    const addToVocabulary = (proposal: string, translation: string) => {
+        const entries = loadVocabulary();
+        const alreadyExists = entries.some(
+            (e) => e.proposal === proposal && e.translation === translation
+        );
+        if (alreadyExists) return;
+        const newEntry: VocabEntry = {
+            id: `vocab-${Date.now()}`,
+            proposal,
+            translation,
+            addedAt: new Date().toISOString(),
+            isHidden: false,
+        };
+        saveVocabulary([...entries, newEntry]);
+    };
+
+    const removeFromVocabulary = (id: string) => {
+        const entries = loadVocabulary().filter((e) => e.id !== id);
+        saveVocabulary(entries);
+    };
+
+    const updateVocabEntry = (
+        id: string,
+        proposal: string,
+        translation: string
+    ) => {
+        const entries = loadVocabulary().map((e) =>
+            e.id === id ? { ...e, proposal, translation } : e
+        );
+        saveVocabulary(entries);
+    };
+
+    const toggleHideVocabEntry = (id: string) => {
+        const entries = loadVocabulary().map((e) =>
+            e.id === id ? { ...e, isHidden: !e.isHidden } : e
+        );
+        saveVocabulary(entries);
+    };
+
+    const downloadVocabulary = () => {
+        const entries = loadVocabulary();
+        const payload = {
+            version: 1,
+            userLanguage,
+            learningLanguage,
+            exportedAt: new Date().toISOString(),
+            entries,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+            type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `vocabulary_${userLanguage}_${learningLanguage}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const isValidVocabEntry = (e: unknown): e is VocabEntry =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof (e as VocabEntry).id === "string" &&
+        typeof (e as VocabEntry).proposal === "string" &&
+        typeof (e as VocabEntry).translation === "string" &&
+        typeof (e as VocabEntry).addedAt === "string" &&
+        (typeof (e as VocabEntry).isHidden === "boolean" ||
+            (e as VocabEntry).isHidden === undefined);
+
+    const handleUploadVocabulary = (file: File) => {
+        setUploadError(null);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const parsed = JSON.parse(ev.target?.result as string);
+                // Accept both the wrapped export format and a raw array
+                const raw: unknown = Array.isArray(parsed)
+                    ? parsed
+                    : parsed?.entries;
+                if (!Array.isArray(raw) || !raw.every(isValidVocabEntry)) {
+                    setUploadError(
+                        'Invalid file format: expected a vocabulary export with an "entries" array where each item has id, proposal, translation, and addedAt fields.'
+                    );
+                    return;
+                }
+                // Merge: skip duplicates by id
+                const existing = loadVocabulary();
+                const existingIds = new Set(existing.map((e) => e.id));
+                const merged = [
+                    ...existing,
+                    ...raw.filter((e) => !existingIds.has(e.id)),
+                ];
+                saveVocabulary(merged);
+            } catch {
+                setUploadError(
+                    "Could not read the file. Make sure it is a valid JSON vocabulary export."
+                );
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const getLocalStorageInfo = () => {
+        let totalUsed = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)!;
+            totalUsed += key.length + (localStorage.getItem(key)?.length || 0);
+        }
+        const totalBytes = totalUsed * 2; // JS strings are UTF-16 (2 bytes per char)
+        const maxBytes = 5 * 1024 * 1024; // ~5 MB typical limit
+        const currentVocabChars = (localStorage.getItem(getVocabKey()) || "")
+            .length;
+        const currentVocabBytes = currentVocabChars * 2;
+        return {
+            usedBytes: totalBytes,
+            maxBytes,
+            remainingBytes: maxBytes - totalBytes,
+            currentVocabBytes,
+        };
+    };
+
+    const formatBytes = (bytes: number) => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,8 +262,16 @@ const LanguageLearningUI = () => {
 
     useEffect(() => {
         inputRef.current?.focus();
+        if (!sessionIdRef.current) {
+            sessionIdRef.current = `lang-session-${Date.now()}`;
+        }
         getLanguageHealth().then(setStatus);
     }, []);
+
+    // Reload vocabulary when language pair changes
+    useEffect(() => {
+        setVocabulary(loadVocabulary());
+    }, [userLanguage, learningLanguage]);
 
     // Load/Save selected model
     useEffect(() => {
@@ -146,7 +326,7 @@ const LanguageLearningUI = () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         message: userMessage.content,
-                        sessionId,
+                        sessionId: sessionIdRef.current,
                         learningLanguage,
                         userLanguage,
                         learningLevel,
@@ -171,6 +351,53 @@ const LanguageLearningUI = () => {
                         if (line.startsWith("data: ")) {
                             try {
                                 const data = JSON.parse(line.slice(6));
+                                if (data.error) {
+                                    const raw: string = data.error;
+                                    const isQuota =
+                                        raw.includes("429") ||
+                                        raw.includes("Too Many Requests") ||
+                                        raw.includes("Quota exceeded") ||
+                                        raw.includes("quota");
+                                    const isRateLimit =
+                                        raw.includes("rate") ||
+                                        raw.includes("Rate");
+                                    const retryMatch =
+                                        /retry in\s+([\d.]+)s/i.exec(raw);
+                                    const retryIn = retryMatch
+                                        ? Math.ceil(
+                                              Number.parseFloat(retryMatch[1])
+                                          )
+                                        : null;
+                                    const retrySuffix = retryIn
+                                        ? ` — please retry in ${retryIn}s`
+                                        : "";
+                                    let userMessage: string;
+                                    if (isQuota) {
+                                        userMessage = `API quota exceeded${retrySuffix}. Free tier limits reached for this model.`;
+                                    } else if (isRateLimit) {
+                                        userMessage = `Rate limit hit${retrySuffix}. You're sending messages too quickly.`;
+                                    } else {
+                                        userMessage = `Server error: ${raw.split("\n")[0].slice(0, 120)}`;
+                                    }
+
+                                    setSessionAlert({
+                                        type: "error",
+                                        message: userMessage,
+                                    });
+                                    setMessages((prev) =>
+                                        prev.map((msg) =>
+                                            msg.id === assistantMessageId
+                                                ? {
+                                                      ...msg,
+                                                      content: isQuota
+                                                          ? "⚠️ Quota exceeded"
+                                                          : "⚠️ Error",
+                                                      isStreaming: false,
+                                                  }
+                                                : msg
+                                        )
+                                    );
+                                }
                                 if (data.chunk) {
                                     setMessages((prev) =>
                                         prev.map((msg) =>
@@ -239,12 +466,26 @@ const LanguageLearningUI = () => {
             }
         } catch (error) {
             console.error("Stream error:", error);
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
+            const isSessionClosed =
+                errorMessage.includes("closed") ||
+                errorMessage.includes("ended") ||
+                errorMessage.includes("aborted");
+            setSessionAlert({
+                type: "error",
+                message: isSessionClosed
+                    ? "Session closed. Your connection to the server was interrupted. Please try again."
+                    : "Failed to get response from server. Please check your connection and try again.",
+            });
             setMessages((prev) =>
                 prev.map((msg) =>
                     msg.id === assistantMessageId
                         ? {
                               ...msg,
-                              content: "Error: Failed to get response",
+                              content: isSessionClosed
+                                  ? "Connection closed"
+                                  : "Error: Failed to get response",
                               isStreaming: false,
                           }
                         : msg
@@ -263,9 +504,10 @@ const LanguageLearningUI = () => {
             await fetch(`${API_URL}/language-learning/clear`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId }),
+                body: JSON.stringify({ sessionId: sessionIdRef.current }),
             });
             setMessages([]);
+            setSessionAlert(null);
         } catch (error) {
             console.error("Clear error:", error);
         }
@@ -280,6 +522,29 @@ const LanguageLearningUI = () => {
 
     return (
         <div className="app language-learning d-flex flex-column vh-100 mx-auto bg-white shadow-lg">
+            {/* Session Alert */}
+            {sessionAlert && (
+                <div
+                    className={`alert alert-${sessionAlert.type} alert-dismissible fade show m-2 mb-0`}
+                    role="alert"
+                >
+                    <div className="d-flex align-items-center gap-2">
+                        <span className="fs-5">
+                            {sessionAlert.type === "error" && "⚠️"}
+                            {sessionAlert.type === "warning" && "⚠️"}
+                            {sessionAlert.type === "info" && "ℹ️"}
+                        </span>
+                        <span>{sessionAlert.message}</span>
+                    </div>
+                    <button
+                        type="button"
+                        className="btn-close"
+                        onClick={() => setSessionAlert(null)}
+                        aria-label="Close"
+                    />
+                </div>
+            )}
+
             <header className="header-orange d-flex flex-column justify-content-between align-items-center p-3 text-white">
                 <div className="w-100 d-flex flex-wrap justify-content-between align-items-start gap-1">
                     <div className="d-flex flex-column">
@@ -315,12 +580,23 @@ const LanguageLearningUI = () => {
                         </Link>
                     </div>
 
-                    <button
-                        className="btn btn-outline-light"
-                        onClick={clearChat}
-                    >
-                        Clear Chat
-                    </button>
+                    <div className="d-flex gap-2">
+                        <button
+                            className="btn btn-outline-light"
+                            onClick={() => {
+                                setVocabulary(loadVocabulary());
+                                setIsVocabModalOpen(true);
+                            }}
+                        >
+                            📖 Vocabulary
+                        </button>
+                        <button
+                            className="btn btn-outline-light"
+                            onClick={clearChat}
+                        >
+                            Clear Chat
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -524,8 +800,12 @@ const LanguageLearningUI = () => {
                                 }}
                             >
                                 {msg.content}
-                                {msg.isStreaming && (
-                                    <span className="cursor">▌</span>
+                                {msg.isStreaming && !msg.content.length && (
+                                    <span className="typing-indicator">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </span>
                                 )}
 
                                 {/* Translation block */}
@@ -542,10 +822,27 @@ const LanguageLearningUI = () => {
                                                 </p>
                                             )}
                                             {msg.translation && (
-                                                <p className="mb-0 text-secondary">
+                                                <button
+                                                    type="button"
+                                                    className="vocab-translation-hint text-secondary mb-0"
+                                                    title="Click to add to Vocabulary"
+                                                    onClick={() => {
+                                                        setPendingVocabEntry({
+                                                            proposal:
+                                                                msg.proposal ||
+                                                                "",
+                                                            translation:
+                                                                msg.translation ||
+                                                                "",
+                                                        });
+                                                        setIsAddVocabModalOpen(
+                                                            true
+                                                        );
+                                                    }}
+                                                >
                                                     <em>Translation:</em>{" "}
                                                     {msg.translation}
-                                                </p>
+                                                </button>
                                             )}
                                         </div>
                                     )}
@@ -564,6 +861,387 @@ const LanguageLearningUI = () => {
                     <div ref={messagesEndRef} />
                 </div>
             </main>
+
+            {/* --- Add to Vocabulary Modal --- */}
+            {isAddVocabModalOpen && pendingVocabEntry && (
+                <div
+                    className="vocab-modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    suppressHydrationWarning
+                    onClick={() => setIsAddVocabModalOpen(false)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") setIsAddVocabModalOpen(false);
+                    }}
+                >
+                    <div
+                        className="vocab-modal"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    >
+                        <div className="vocab-modal-header">
+                            <h5 className="mb-0">📝 Add to Vocabulary</h5>
+                            <button
+                                className="btn-close"
+                                onClick={() => setIsAddVocabModalOpen(false)}
+                            />
+                        </div>
+                        <div className="vocab-modal-body">
+                            <div className="mb-3">
+                                <label className="form-label fw-semibold small text-secondary">
+                                    Proposal ({learningLanguage}):
+                                </label>
+                                <div className="p-2 bg-light rounded border">
+                                    {pendingVocabEntry.proposal || (
+                                        <em className="text-muted">—</em>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label fw-semibold small text-secondary">
+                                    Translation ({userLanguage}):
+                                </label>
+                                <div className="p-2 bg-light rounded border">
+                                    {pendingVocabEntry.translation}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="vocab-modal-footer">
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setIsAddVocabModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-success btn-sm"
+                                onClick={() => {
+                                    addToVocabulary(
+                                        pendingVocabEntry.proposal,
+                                        pendingVocabEntry.translation
+                                    );
+                                    setIsAddVocabModalOpen(false);
+                                    setPendingVocabEntry(null);
+                                }}
+                            >
+                                ✅ Add to Vocabulary
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Edit Vocabulary Entry Modal --- */}
+            {isEditVocabModalOpen && editingEntry && (
+                <div
+                    className="vocab-modal-overlay vocab-modal-overlay-edit"
+                    role="dialog"
+                    aria-modal="true"
+                    suppressHydrationWarning
+                    onClick={() => setIsEditVocabModalOpen(false)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") setIsEditVocabModalOpen(false);
+                    }}
+                >
+                    <div
+                        className="vocab-modal"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    >
+                        <div className="vocab-modal-header">
+                            <h5 className="mb-0">✏️ Edit Entry</h5>
+                            <button
+                                className="btn-close"
+                                onClick={() => setIsEditVocabModalOpen(false)}
+                            />
+                        </div>
+                        <div className="vocab-modal-body">
+                            <div className="mb-3">
+                                <label className="form-label fw-semibold small text-secondary">
+                                    Proposal ({learningLanguage}):
+                                </label>
+                                <textarea
+                                    className="form-control form-control-sm"
+                                    rows={2}
+                                    value={editProposal}
+                                    onChange={(e) =>
+                                        setEditProposal(e.target.value)
+                                    }
+                                />
+                            </div>
+                            <div className="mb-1">
+                                <label className="form-label fw-semibold small text-secondary">
+                                    Translation ({userLanguage}):
+                                </label>
+                                <textarea
+                                    className="form-control form-control-sm"
+                                    rows={2}
+                                    value={editTranslation}
+                                    onChange={(e) =>
+                                        setEditTranslation(e.target.value)
+                                    }
+                                />
+                            </div>
+                        </div>
+                        <div className="vocab-modal-footer">
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setIsEditVocabModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                disabled={
+                                    !editProposal.trim() ||
+                                    !editTranslation.trim()
+                                }
+                                onClick={() => {
+                                    updateVocabEntry(
+                                        editingEntry.id,
+                                        editProposal.trim(),
+                                        editTranslation.trim()
+                                    );
+                                    setIsEditVocabModalOpen(false);
+                                    setEditingEntry(null);
+                                }}
+                            >
+                                💾 Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Vocabulary List Modal --- */}
+            {isVocabModalOpen && (
+                <div
+                    className="vocab-modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    suppressHydrationWarning
+                    onClick={() => setIsVocabModalOpen(false)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") setIsVocabModalOpen(false);
+                    }}
+                >
+                    <div
+                        className="vocab-modal vocab-modal-lg"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    >
+                        <div className="vocab-modal-header">
+                            <div className="w-100 d-flex justify-content-between">
+                                <h5 className="mb-0">
+                                    📖 Vocabulary — {userLanguage} →{" "}
+                                    {learningLanguage}
+                                </h5>
+                                <button
+                                    className="btn-close"
+                                    onClick={() => {
+                                        setIsVocabModalOpen(false);
+                                        setUploadError(null);
+                                    }}
+                                />
+                            </div>
+                            <div className="w-100 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <div
+                                    className="btn-group btn-group-sm"
+                                    role="group"
+                                >
+                                    {(
+                                        ["visible", "all", "hidden"] as const
+                                    ).map((mode) => (
+                                        <button
+                                            key={mode}
+                                            type="button"
+                                            className={`btn ${
+                                                vocabFilterMode === mode
+                                                    ? "btn-secondary"
+                                                    : "btn-outline-secondary"
+                                            }`}
+                                            onClick={() =>
+                                                setVocabFilterMode(mode)
+                                            }
+                                            title={`Show ${mode} entries`}
+                                        >
+                                            {mode === "visible" && "👁️"}
+                                            {mode === "all" && "📋"}
+                                            {mode === "hidden" && "🙈"}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="d-flex gap-2">
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        title="Download vocabulary as JSON"
+                                        onClick={downloadVocabulary}
+                                        disabled={vocabulary.length === 0}
+                                    >
+                                        ⬇ Download
+                                    </button>
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        title="Upload and merge vocabulary from JSON"
+                                        onClick={() => {
+                                            setUploadError(null);
+                                            uploadInputRef.current?.click();
+                                        }}
+                                    >
+                                        ⬆ Upload
+                                    </button>
+                                    <input
+                                        ref={uploadInputRef}
+                                        type="file"
+                                        accept=".json,application/json"
+                                        className="d-none"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file)
+                                                handleUploadVocabulary(file);
+                                            e.target.value = "";
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        {uploadError && (
+                            <div className="alert alert-danger mb-0 px-3 py-2 rounded-0 small">
+                                ⚠️ {uploadError}
+                            </div>
+                        )}
+                        <div
+                            className="vocab-modal-body"
+                            style={{ maxHeight: "60vh", overflowY: "auto" }}
+                        >
+                            {vocabulary.length === 0 ? (
+                                <p className="text-muted text-center py-4">
+                                    No saved words yet. Click a translation in
+                                    chat to add entries.
+                                </p>
+                            ) : (
+                                <table className="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>
+                                                {learningLanguage} (Proposal)
+                                            </th>
+                                            <th>
+                                                {userLanguage} (Translation)
+                                            </th>
+                                            <th style={{ width: 100 }}></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(() => {
+                                            const filtered =
+                                                vocabFilterMode === "hidden"
+                                                    ? vocabulary.filter(
+                                                          (e) =>
+                                                              e.isHidden ===
+                                                              true
+                                                      )
+                                                    : vocabFilterMode === "all"
+                                                      ? vocabulary
+                                                      : vocabulary.filter(
+                                                            (e) => !e.isHidden
+                                                        );
+                                            return filtered.map(
+                                                (entry, idx) => (
+                                                    <tr key={entry.id}>
+                                                        <td className="text-muted">
+                                                            {idx + 1}
+                                                        </td>
+                                                        <td>
+                                                            {entry.proposal}
+                                                        </td>
+                                                        <td>
+                                                            {entry.translation}
+                                                        </td>
+                                                        <td>
+                                                            <div className="d-flex gap-1">
+                                                                <button
+                                                                    className="btn btn-outline-secondary btn-sm py-0 px-1"
+                                                                    title={
+                                                                        entry.isHidden
+                                                                            ? "Show"
+                                                                            : "Hide"
+                                                                    }
+                                                                    onClick={() =>
+                                                                        toggleHideVocabEntry(
+                                                                            entry.id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {entry.isHidden
+                                                                        ? "👁️"
+                                                                        : "🙈"}
+                                                                </button>
+                                                                <button
+                                                                    className="btn btn-outline-secondary btn-sm py-0 px-1"
+                                                                    title="Edit"
+                                                                    onClick={() => {
+                                                                        setEditingEntry(
+                                                                            entry
+                                                                        );
+                                                                        setEditProposal(
+                                                                            entry.proposal
+                                                                        );
+                                                                        setEditTranslation(
+                                                                            entry.translation
+                                                                        );
+                                                                        setIsEditVocabModalOpen(
+                                                                            true
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    ✏️
+                                                                </button>
+                                                                <button
+                                                                    className="btn btn-outline-danger btn-sm py-0 px-1"
+                                                                    title="Remove"
+                                                                    onClick={() =>
+                                                                        removeFromVocabulary(
+                                                                            entry.id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            );
+                                        })()}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        <div className="vocab-modal-footer flex-column align-items-stretch">
+                            <div className="text-muted small text-center">
+                                {(() => {
+                                    const info = getLocalStorageInfo();
+                                    return (
+                                        <>
+                                            💾 This vocabulary:{" "}
+                                            {formatBytes(
+                                                info.currentVocabBytes
+                                            )}{" "}
+                                            &nbsp;|&nbsp; Total used:{" "}
+                                            {formatBytes(info.usedBytes)} /{" "}
+                                            {formatBytes(info.maxBytes)}{" "}
+                                            &nbsp;|&nbsp; Remaining:{" "}
+                                            {formatBytes(info.remainingBytes)}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <footer className="d-flex gap-2 p-3 bg-light border-top">
                 <input
