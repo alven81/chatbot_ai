@@ -59,11 +59,12 @@ const ChatUI = ({ initialStatus }: ChatUIProps) => {
         }
     }, [status]);
 
-    const handleModelChange = async (e: ChangeEvent<HTMLSelectElement>) => {
-        await clearChat();
+    const handleModelChange = (e: ChangeEvent<HTMLSelectElement>) => {
         const modelId = e.target.value;
         setSelectedModel(modelId);
         localStorage.setItem("chat_model_id", modelId);
+        // Clear chat in background without blocking model change
+        clearChat();
     };
 
     const sendMessage = async () => {

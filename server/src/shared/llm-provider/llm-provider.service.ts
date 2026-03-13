@@ -2,7 +2,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import OpenAI from "openai";
 
 export interface LlmInfo {
@@ -30,7 +30,8 @@ export interface ILlmModel {
     isOcrOnly?: boolean;
 }
 
-const OLLAMA_BASE_URL = "http://localhost:11434/v1";
+const OLLAMA_BASE_URL =
+    process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
 
 const OLLAMA_MODELS = new Set([
     "llava",
@@ -58,7 +59,7 @@ export class LlmProviderService {
     getAvailableModels(): ILlmModel[] {
         const models: ILlmModel[] = [];
 
-        const useOllama = this.configService.get("USE_OLLAMA") === "true";
+        const useOllama = this.configService.get("USE_OLLAMA");
         const openaiKey = this.configService.get("OPENAI_API_KEY");
         const googleKey = this.configService.get("GOOGLE_API_KEY");
 
@@ -69,6 +70,7 @@ export class LlmProviderService {
                     name: "Llava (Ollama)",
                     provider: "Ollama",
                     isImageCapable: true,
+                    isOcrOnly: false,
                 },
                 {
                     id: OCR_MODEL,
@@ -86,11 +88,15 @@ export class LlmProviderService {
                     id: "gpt-4o",
                     name: "GPT-4o",
                     provider: "OpenAI",
+                    isImageCapable: true,
+                    isOcrOnly: true,
                 },
                 {
                     id: "gpt-4o-mini",
                     name: "GPT-4o Mini",
                     provider: "OpenAI",
+                    isImageCapable: true,
+                    isOcrOnly: true,
                 }
             );
         }

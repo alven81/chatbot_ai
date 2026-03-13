@@ -1,0 +1,59 @@
+services:
+    # ── NestJS backend ────────────────────────────────────────────────────────────
+    backend:
+        build:
+            context: .
+            dockerfile: Dockerfile.backend
+        ports:
+            - "3001:3001"
+        volumes:
+            - ./server:/app/server
+            - ./tsconfig.json:/app/tsconfig.json
+        environment:
+            NODE_ENV: production
+            PORT: "3001"
+            # Ollama runs on the host machine; Docker Desktop resolves this to the host
+            OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+        # Loads API keys from your .env file (copy example.env → .env and fill it in)
+        env_file:
+            - .env
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "node",
+                    "-e",
+                    "require('http').get('http://localhost:3001/api/chat/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+
+    # ── Next.js frontend ──────────────────────────────────────────────────────────
+    frontend:
+        build:
+            context: .
+            dockerfile: Dockerfile.frontend
+            args:
+                # Baked into the client bundle at build time so the browser can reach
+                # the backend via the exposed host port.
+                NEXT_PUBLIC_API_URL: http://localhost:3001/api
+        ports:
+            - "3000:3000"
+        volumes:
+            - ./app:/app/app
+            - ./components:/app/components
+            - ./services:/app/services
+            - ./public:/app/public
+        environment:
+            NODE_ENV: production
+            PORT: "3000"
+            # Used by Next.js SSR (server components) to reach the backend through
+            # the internal Docker Compose network – never exposed to the browser.
+            API_URL: http://backend:3001/api
+        depends_on:
+            backend:
+                condition: service_healthy
+        restart: unless-stopped

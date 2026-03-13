@@ -43,7 +43,12 @@ const ImageProcessingUI = () => {
             status.availableModels &&
             status.availableModels.length > 0
         ) {
-            setSelectedModel(status.availableModels[0].id);
+            const imageCapableModels = status.availableModels.filter(
+                (model) => model.isImageCapable && !model.isOcrOnly
+            );
+            if (imageCapableModels.length > 0) {
+                setSelectedModel(imageCapableModels[0].id);
+            }
         }
     }, [status]);
 

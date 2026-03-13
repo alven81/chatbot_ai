@@ -41,6 +41,101 @@ npm run dev
 
 ---
 
+## 🐳 Docker
+
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Engine + Compose)
+- Docker Desktop must be running before any `docker compose` commands
+
+### Setup
+
+**1. Copy and fill in your environment file:**
+
+```bash
+copy example.env .env
+```
+
+For Docker, make sure `.env` includes:
+
+```env
+USE_OLLAMA=true
+USE_GOOGLE_LLM=true
+USE_OPENAI_LLM=true
+
+# Required when using Ollama with Docker — points to your host machine
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+
+GOOGLE_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here
+```
+
+> `host.docker.internal` is a Docker Desktop special hostname that resolves to your host machine — required so the backend container can reach Ollama running locally.
+
+---
+
+### Build & Run
+
+```bash
+# Build images and start both containers (foreground with live logs)
+docker compose up --build
+```
+
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:3001
+- **Swagger UI**: http://localhost:3001/swagger
+
+Press `Ctrl+C` to stop.
+
+---
+
+### Development — Hot Reload (Watch Mode)
+
+Source files are mounted as volumes, so code changes reflect **instantly** without rebuilding:
+
+```bash
+# Start containers (no rebuild needed after the first --build)
+docker compose up
+```
+
+| Path            | Service                     |
+| --------------- | --------------------------- |
+| `./server/`     | Backend (NestJS)            |
+| `./app/`        | Frontend (Next.js pages)    |
+| `./components/` | Frontend (React components) |
+| `./services/`   | Frontend (API client)       |
+
+---
+
+### Updating Containers
+
+| Scenario                        | Command                                                           |
+| ------------------------------- | ----------------------------------------------------------------- |
+| Code change (hot reload active) | Just save the file — no command needed                            |
+| Added/removed npm packages      | `docker compose up --build`                                       |
+| Rebuild a single service        | `docker compose build backend` or `docker compose build frontend` |
+| Restart without rebuild         | `docker compose up`                                               |
+| Stop and remove containers      | `docker compose down`                                             |
+
+---
+
+### Run in Background (Detached)
+
+```bash
+docker compose up -d
+
+# Follow logs
+docker compose logs -f
+
+# Follow a specific service
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Stop
+docker compose down
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -316,6 +411,35 @@ CORS is open (`app.enableCors()` in `server/src/main.ts`). Changing the frontend
 ### Large image uploads failing
 
 The server accepts payloads up to **50 MB**. If you hit this limit, reduce image resolution before uploading.
+
+### 🐳 Docker — Backend container unhealthy
+
+The health check polls `/api/chat/health` via Node.js. If the backend takes longer to boot, it may fail retries:
+
+```bash
+# Check what the backend is actually doing
+docker compose logs backend
+```
+
+If healthy but slow, increase `start_period` in `docker-compose.yml`.
+
+### 🐳 Docker — Ollama not reachable from container
+
+Ensure `OLLAMA_BASE_URL=http://host.docker.internal:11434/v1` is set in `.env`.  
+Also verify Ollama is running on your host:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+### 🐳 Docker — `npm ci` fails during build (lock file out of sync)
+
+The `package-lock.json` is out of sync with `package.json`. Regenerate it first:
+
+```bash
+npm install
+docker compose up --build
+```
 
 ---
 

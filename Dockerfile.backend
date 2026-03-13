@@ -1,0 +1,30 @@
+# ── Stage 1: install dependencies ─────────────────────────────────────────────
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+# Install ALL dependencies (devDeps included) – @swc-node/register is a devDep
+# used to execute TypeScript directly without a separate compile step.
+RUN npm ci
+
+# ── Stage 2: production runner ────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy installed node_modules
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy the package manifests (needed for module resolution)
+COPY package.json package-lock.json ./
+
+# Copy server source and shared tsconfig
+COPY server/ ./server/
+COPY tsconfig.json ./
+
+EXPOSE 3001
+ENV PORT=3001
+
+# Run TypeScript directly via SWC (no pre-compile step required)
+CMD ["node", "--import", "@swc-node/register/esm-register", "./server/src/main.ts"]
