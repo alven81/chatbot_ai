@@ -76,6 +76,60 @@
         }
     }
 
+    // --- Mic listening visualizer ---
+    .mic-visualizer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        height: 32px;
+        padding: 0 10px;
+        background: rgba(220, 53, 69, 0.07);
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        border-radius: 0.5rem;
+        flex-shrink: 0;
+
+        .mic-bar {
+            width: 3px;
+            border-radius: 2px;
+            background: #dc3545;
+            animation: micBarPulse 0.9s ease-in-out infinite;
+
+            &:nth-child(1) {
+                height: 8px;
+                animation-delay: 0s;
+            }
+            &:nth-child(2) {
+                height: 16px;
+                animation-delay: 0.1s;
+            }
+            &:nth-child(3) {
+                height: 24px;
+                animation-delay: 0.2s;
+            }
+            &:nth-child(4) {
+                height: 16px;
+                animation-delay: 0.3s;
+            }
+            &:nth-child(5) {
+                height: 8px;
+                animation-delay: 0.4s;
+            }
+        }
+    }
+
+    @keyframes micBarPulse {
+        0%,
+        100% {
+            transform: scaleY(0.4);
+            opacity: 0.5;
+        }
+        50% {
+            transform: scaleY(1);
+            opacity: 1;
+        }
+    }
+
     // --- Typing indicator (animated dots) ---
     .typing-indicator {
         display: inline-flex;

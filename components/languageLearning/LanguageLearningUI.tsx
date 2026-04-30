@@ -6,8 +6,8 @@ import Image from "next/image";
 import { getLanguageHealth, HealthStatus } from "@/services/request";
 import tutorImage from "@/app/assets/images/ll-girl.jpg";
 import tutorIco from "@/app/assets/images/ll-girl-ico.png";
-import "./LanguageLearning.scss";
 import { API_URL } from "@/services/routes";
+import "./LanguageLearning.scss";
 
 interface Message {
     id: string;
@@ -26,6 +26,26 @@ interface VocabEntry {
     addedAt: string;
     isHidden?: boolean;
 }
+
+interface ISpeechRecognition {
+    lang: string;
+    interimResults: boolean;
+    maxAlternatives: number;
+    onstart: (() => void) | null;
+    onend: (() => void) | null;
+    onerror: (() => void) | null;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    start(): void;
+    stop(): void;
+}
+type ISpeechRecognitionCtor = new () => ISpeechRecognition;
+
+const getSpeechRecognitionCtor = (): ISpeechRecognitionCtor | undefined => {
+    const g = globalThis as Record<string, unknown>;
+    return (g["SpeechRecognition"] ?? g["webkitSpeechRecognition"]) as
+        | ISpeechRecognitionCtor
+        | undefined;
+};
 
 const LANGUAGES = [
     "Polish",
@@ -53,6 +73,31 @@ const LANGUAGES = [
 ];
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+const LANGUAGE_CODES: Record<string, string> = {
+    Polish: "pl-PL",
+    English: "en-US",
+    Russian: "ru-RU",
+    Belorussian: "be-BY",
+    Norwegian: "nb-NO",
+    German: "de-DE",
+    Spanish: "es-ES",
+    French: "fr-FR",
+    Italian: "it-IT",
+    Portuguese: "pt-PT",
+    Japanese: "ja-JP",
+    Korean: "ko-KR",
+    "Chinese (Mandarin)": "zh-CN",
+    Arabic: "ar-SA",
+    Hindi: "hi-IN",
+    Turkish: "tr-TR",
+    Dutch: "nl-NL",
+    Swedish: "sv-SE",
+    Czech: "cs-CZ",
+    Ukrainian: "uk-UA",
+    Greek: "el-GR",
+    Hebrew: "he-IL",
+};
 
 const PROFESSIONS = [
     "General",
@@ -104,9 +149,20 @@ const LanguageLearningUI = () => {
         message: string;
     } | null>(null);
     const [vocabulary, setVocabulary] = useState<VocabEntry[]>([]);
+    const [isMicListening, setIsMicListening] = useState(false);
+    const [micLang, setMicLang] = useState<"learning" | "user">("learning");
+    const [autoSpeak, setAutoSpeak] = useState(false);
+    const [availableVoices, setAvailableVoices] = useState<
+        SpeechSynthesisVoice[]
+    >([]);
+    const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>("");
+    const [autoSend, setAutoSend] = useState(false);
+    const [hasSpeechRecognition, setHasSpeechRecognition] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const uploadInputRef = useRef<HTMLInputElement>(null);
+    const recognitionRef = useRef<ISpeechRecognition | null>(null);
+    const spokenIdsRef = useRef<Set<string>>(new Set());
 
     // --- Vocabulary helpers ---
     const getVocabKey = () => `vocab_${userLanguage}_${learningLanguage}`;
@@ -252,6 +308,56 @@ const LanguageLearningUI = () => {
         return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     };
 
+    const speakText = (text: string) => {
+        globalThis.window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const langCode = LANGUAGE_CODES[learningLanguage];
+        if (langCode) utterance.lang = langCode;
+        if (selectedVoiceURI) {
+            const voice = availableVoices.find(
+                (v) => v.voiceURI === selectedVoiceURI
+            );
+            if (voice) utterance.voice = voice;
+        }
+        globalThis.window.speechSynthesis.speak(utterance);
+    };
+
+    const handleVoiceInput = () => {
+        const Ctor = getSpeechRecognitionCtor();
+        if (!Ctor) return;
+
+        if (isMicListening && recognitionRef.current) {
+            recognitionRef.current.stop();
+            return;
+        }
+
+        const recognition = new Ctor();
+        recognitionRef.current = recognition;
+        recognition.lang =
+            (micLang === "learning"
+                ? LANGUAGE_CODES[learningLanguage]
+                : LANGUAGE_CODES[userLanguage]) ?? "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => setIsMicListening(true);
+        recognition.onend = () => setIsMicListening(false);
+        recognition.onerror = () => setIsMicListening(false);
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+            const transcript = event.results[0][0].transcript;
+            if (autoSend) {
+                sendMessage(transcript);
+            } else {
+                setInput((prev) =>
+                    prev ? prev + " " + transcript : transcript
+                );
+                setTimeout(() => inputRef.current?.focus(), 0);
+            }
+        };
+
+        recognition.start();
+    };
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -266,12 +372,52 @@ const LanguageLearningUI = () => {
             sessionIdRef.current = `lang-session-${Date.now()}`;
         }
         getLanguageHealth().then(setStatus);
+        setHasSpeechRecognition(getSpeechRecognitionCtor() !== undefined);
     }, []);
 
     // Reload vocabulary when language pair changes
     useEffect(() => {
         setVocabulary(loadVocabulary());
     }, [userLanguage, learningLanguage]);
+
+    // Load persisted preferences
+    useEffect(() => {
+        if (localStorage.getItem("lang_auto_speak") === "true")
+            setAutoSpeak(true);
+        if (localStorage.getItem("lang_auto_send") === "true")
+            setAutoSend(true);
+    }, []);
+
+    // Load available TTS voices and restore saved selection
+    useEffect(() => {
+        const synth = globalThis.window.speechSynthesis;
+        const load = () => {
+            setAvailableVoices(synth.getVoices());
+            const saved = localStorage.getItem("lang_voice_uri");
+            if (saved) setSelectedVoiceURI(saved);
+        };
+        load();
+        synth.addEventListener("voiceschanged", load);
+        return () => synth.removeEventListener("voiceschanged", load);
+    }, []);
+
+    // Reset voice when learning language changes
+    useEffect(() => {
+        setSelectedVoiceURI("");
+        localStorage.removeItem("lang_voice_uri");
+    }, [learningLanguage]);
+
+    // Auto-speak new finished assistant messages
+    useEffect(() => {
+        if (!autoSpeak) return;
+        const last = [...messages]
+            .reverse()
+            .find((m) => m.role === "assistant" && !m.isStreaming && m.content);
+        if (last && !spokenIdsRef.current.has(last.id)) {
+            spokenIdsRef.current.add(last.id);
+            speakText(last.content);
+        }
+    }, [messages, autoSpeak]);
 
     // Load/Save selected model
     useEffect(() => {
@@ -292,13 +438,14 @@ const LanguageLearningUI = () => {
         localStorage.setItem("lang_model_id", modelId);
     };
 
-    const sendMessage = async () => {
-        if (!input.trim() || isLoading) return;
+    const sendMessage = async (overrideContent?: string) => {
+        const messageContent = (overrideContent ?? input).trim();
+        if (!messageContent || isLoading) return;
 
         const userMessage: Message = {
             id: `msg-${Date.now()}`,
             role: "user",
-            content: input.trim(),
+            content: messageContent,
         };
 
         setMessages((prev) => [...prev, userMessage]);
@@ -520,6 +667,16 @@ const LanguageLearningUI = () => {
         }
     };
 
+    const micLangName =
+        micLang === "learning" ? learningLanguage : userLanguage;
+
+    const learningLangPrefix = (LANGUAGE_CODES[learningLanguage] ?? "").split(
+        "-"
+    )[0];
+    const voicesForLang = availableVoices.filter((v) =>
+        v.lang.startsWith(learningLangPrefix)
+    );
+
     return (
         <div className="app language-learning d-flex flex-column vh-100 mx-auto bg-white shadow-lg">
             {/* Session Alert */}
@@ -606,7 +763,8 @@ const LanguageLearningUI = () => {
                         isSettingsOpen ? "open" : "collapsed"
                     }`}
                 >
-                    <div className="d-flex flex-wrap gap-3 p-3 align-items-end">
+                    <div className="d-flex flex-wrap gap-2 p-3 align-items-end">
+                        {/* Row 1: languages, profession, level */}
                         <div className="flex-grow-1" style={{ minWidth: 180 }}>
                             <label
                                 htmlFor="user-language-select"
@@ -653,6 +811,29 @@ const LanguageLearningUI = () => {
                             </select>
                         </div>
 
+                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
+                            <label
+                                htmlFor="user-profession-select"
+                                className="form-label small fw-semibold text-secondary"
+                            >
+                                Profession:
+                            </label>
+                            <select
+                                id="user-profession-select"
+                                value={userProfession}
+                                onChange={(e) =>
+                                    setUserProfession(e.target.value)
+                                }
+                                className="form-select"
+                            >
+                                {PROFESSIONS.map((prof) => (
+                                    <option key={prof} value={prof}>
+                                        {prof}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         <div className="flex-grow-1" style={{ minWidth: 100 }}>
                             <label
                                 htmlFor="learning-level-select"
@@ -676,27 +857,120 @@ const LanguageLearningUI = () => {
                             </select>
                         </div>
 
-                        <div className="flex-grow-1" style={{ minWidth: 180 }}>
-                            <label
-                                htmlFor="user-profession-select"
-                                className="form-label small fw-semibold text-secondary"
+                        {/* Row 2: voice + toggles in one line */}
+                        <div className="w-100 d-flex flex-wrap gap-3 align-items-end">
+                            <div
+                                className="flex-grow-1"
+                                style={{ minWidth: 200 }}
                             >
-                                Profession:
-                            </label>
-                            <select
-                                id="user-profession-select"
-                                value={userProfession}
-                                onChange={(e) =>
-                                    setUserProfession(e.target.value)
-                                }
-                                className="form-select"
-                            >
-                                {PROFESSIONS.map((prof) => (
-                                    <option key={prof} value={prof}>
-                                        {prof}
-                                    </option>
-                                ))}
-                            </select>
+                                <label
+                                    htmlFor="voice-select"
+                                    className="form-label small fw-semibold text-secondary"
+                                >
+                                    Voice:
+                                </label>
+                                <select
+                                    id="voice-select"
+                                    className="form-select"
+                                    value={selectedVoiceURI}
+                                    disabled={
+                                        availableVoices.length === 0 ||
+                                        voicesForLang.length === 0
+                                    }
+                                    onChange={(e) => {
+                                        setSelectedVoiceURI(e.target.value);
+                                        localStorage.setItem(
+                                            "lang_voice_uri",
+                                            e.target.value
+                                        );
+                                    }}
+                                >
+                                    {availableVoices.length === 0 && (
+                                        <option value="">
+                                            Loading voices…
+                                        </option>
+                                    )}
+                                    {availableVoices.length > 0 &&
+                                        voicesForLang.length === 0 && (
+                                            <option value="">
+                                                No voices for {learningLanguage}
+                                            </option>
+                                        )}
+                                    {voicesForLang.length > 0 && (
+                                        <>
+                                            <option value="">Default</option>
+                                            {voicesForLang.map((v) => (
+                                                <option
+                                                    key={v.voiceURI}
+                                                    value={v.voiceURI}
+                                                >
+                                                    {v.name}
+                                                </option>
+                                            ))}
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+
+                            <div className="d-flex align-items-center gap-4 pb-1">
+                                <div className="d-flex align-items-center gap-2">
+                                    <span className="small fw-semibold text-secondary">
+                                        Auto-speak:
+                                    </span>
+                                    <div className="form-check form-switch mb-0">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="auto-speak-toggle"
+                                            checked={autoSpeak}
+                                            onChange={(e) => {
+                                                setAutoSpeak(e.target.checked);
+                                                localStorage.setItem(
+                                                    "lang_auto_speak",
+                                                    String(e.target.checked)
+                                                );
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        />
+                                        <label
+                                            className="form-check-label small text-secondary"
+                                            htmlFor="auto-speak-toggle"
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            {autoSpeak ? "On" : "Off"}
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="d-flex align-items-center gap-2">
+                                    <span className="small fw-semibold text-secondary">
+                                        Auto-send:
+                                    </span>
+                                    <div className="form-check form-switch mb-0">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="auto-send-toggle"
+                                            checked={autoSend}
+                                            onChange={(e) => {
+                                                setAutoSend(e.target.checked);
+                                                localStorage.setItem(
+                                                    "lang_auto_send",
+                                                    String(e.target.checked)
+                                                );
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        />
+                                        <label
+                                            className="form-check-label small text-secondary"
+                                            htmlFor="auto-send-toggle"
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            {autoSend ? "On" : "Off"}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -732,6 +1006,8 @@ const LanguageLearningUI = () => {
                                     alt="Language Tutor"
                                     width={350}
                                     height={500}
+                                    loading="eager"
+                                    priority
                                     style={{
                                         borderRadius: "1.5rem",
                                         objectFit: "cover",
@@ -799,6 +1075,24 @@ const LanguageLearningUI = () => {
                                     wordBreak: "break-word",
                                 }}
                             >
+                                {msg.role === "assistant" &&
+                                    msg.content &&
+                                    !msg.isStreaming && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-link p-0 border-0 float-start me-1"
+                                            title={`Listen in ${learningLanguage}`}
+                                            onClick={() =>
+                                                speakText(msg.content)
+                                            }
+                                            style={{
+                                                fontSize: "1rem",
+                                                lineHeight: 1,
+                                            }}
+                                        >
+                                            🔊
+                                        </button>
+                                    )}
                                 {msg.content}
                                 {msg.isStreaming && !msg.content.length && (
                                     <span className="typing-indicator">
@@ -816,9 +1110,27 @@ const LanguageLearningUI = () => {
                                                 📝 Translation of your message:
                                             </strong>
                                             {msg.proposal && (
-                                                <p className="mb-1">
-                                                    <em>Proposal:</em>{" "}
-                                                    {msg.proposal}
+                                                <p className="mb-1 d-flex align-items-start gap-1">
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-link p-0 border-0 flex-shrink-0"
+                                                        title={`Listen in ${learningLanguage}`}
+                                                        onClick={() =>
+                                                            speakText(
+                                                                msg.proposal!
+                                                            )
+                                                        }
+                                                        style={{
+                                                            fontSize: "1rem",
+                                                            lineHeight: 1,
+                                                        }}
+                                                    >
+                                                        🔊
+                                                    </button>
+                                                    <span>
+                                                        <em>Proposal:</em>{" "}
+                                                        {msg.proposal}
+                                                    </span>
                                                 </p>
                                             )}
                                             {msg.translation && (
@@ -1244,6 +1556,15 @@ const LanguageLearningUI = () => {
             )}
 
             <footer className="d-flex gap-2 p-3 bg-light border-top">
+                {isMicListening && (
+                    <div className="mic-visualizer" aria-label="Listening…">
+                        <span className="mic-bar" />
+                        <span className="mic-bar" />
+                        <span className="mic-bar" />
+                        <span className="mic-bar" />
+                        <span className="mic-bar" />
+                    </div>
+                )}
                 <input
                     ref={inputRef}
                     type="text"
@@ -1251,12 +1572,54 @@ const LanguageLearningUI = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyUp={handleKeyPress}
-                    placeholder={`Type in ${learningLanguage} or ${userLanguage}...`}
+                    placeholder={
+                        isMicListening
+                            ? `Listening in ${micLangName}…`
+                            : `Type in ${learningLanguage} or ${userLanguage}...`
+                    }
                     disabled={isLoading}
                 />
+                {hasSpeechRecognition && (
+                    <>
+                        <button
+                            type="button"
+                            className="btn btn-outline-secondary px-2"
+                            disabled={isLoading || isMicListening}
+                            onClick={() =>
+                                setMicLang((prev) =>
+                                    prev === "learning" ? "user" : "learning"
+                                )
+                            }
+                            title={`Recognition language: ${micLangName} — click to switch`}
+                            style={{
+                                fontSize: "0.75rem",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {micLangName}
+                        </button>
+                        <button
+                            type="button"
+                            className={`btn ${
+                                isMicListening
+                                    ? "btn-danger"
+                                    : "btn-outline-secondary"
+                            } px-3`}
+                            onClick={handleVoiceInput}
+                            disabled={isLoading}
+                            title={
+                                isMicListening
+                                    ? "Stop recording"
+                                    : `Speak in ${micLangName}`
+                            }
+                        >
+                            {isMicListening ? "⏹" : "🎤"}
+                        </button>
+                    </>
+                )}
                 <button
                     className="btn btn-send text-white fw-semibold px-4"
-                    onClick={sendMessage}
+                    onClick={() => sendMessage()}
                     disabled={isLoading || !input.trim()}
                 >
                     {isLoading ? "..." : "Send"}
